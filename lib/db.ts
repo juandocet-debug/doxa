@@ -7,7 +7,12 @@ function createPrisma() {
   const dbUrl = process.env.DATABASE_URL;
   const isVercel = process.env.VERCEL === '1';
   if (!dbUrl || isVercel) {
-    return new PrismaClient();
+    const { Pool } = require('pg');
+    const { PrismaPg } = require('@prisma/adapter-pg');
+    const connStr = dbUrl || 'postgresql://dummy:dummy@localhost:5432/dummy';
+    const pool = new Pool({ connectionString: connStr });
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ adapter });
   }
   if (dbUrl.startsWith('file:') || dbUrl.startsWith('sqlite:')) {
     const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
