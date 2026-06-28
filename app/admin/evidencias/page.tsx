@@ -1,0 +1,611 @@
+'use client';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { COMPONENTES, CLASES } from '@/lib/componentes';
+
+interface TallyFile {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: string;
+  size: number;
+}
+
+interface SubmisionEvidencia {
+  submissionId: string;
+  formId: string;
+  componenteId: string;
+  componenteNombre: string;
+  grupo: string;
+  clase: string;
+  fechaEnvio: string;
+  fotos: { label: string; archivos: TallyFile[] }[];
+  estado: 'pendiente' | 'aprobada' | 'rechazada';
+  notas: string | null;
+}
+
+interface Preview {
+  submissionId: string;
+  url: string;
+  name: string;
+  label: string;
+}
+
+const C = {
+  bg:            'linear-gradient(135deg, #10071F 0%, #24104B 52%, #421B6D 100%)',
+  surface:       'rgba(20,8,42,0.88)',
+  surfaceBorder: 'rgba(203,170,255,0.22)',
+  filter:        'rgba(17,9,35,0.72)',
+  filterBorder:  'rgba(255,255,255,0.14)',
+  ghost:         'rgba(255,255,255,0.11)',
+  ghostBorder:   'rgba(255,255,255,0.16)',
+  input:         'rgba(255,255,255,0.08)',
+  inputBorder:   'rgba(255,255,255,0.18)',
+  lime:          '#C8FF7A',
+  textPrimary:   '#F7F2FF',
+  textMuted:     '#CFC2DF',
+  rowBorder:     'rgba(255,255,255,0.1)',
+  errorBg:       'rgba(255,77,121,0.18)',
+  errorBorder:   'rgba(255,77,121,0.35)',
+  errorText:     '#FFE6EC',
+  previewBg:     'rgba(10,4,25,0.95)',
+};
+
+const PAGE_SIZE = 5;
+
+interface SessionComp {
+  compId: string;
+  nombre: string;
+  formId: string;
+  grupos: string[];
+}
+
+export default function AdminEvidenciasPage() {
+  const [session, setSession]         = useState<SessionComp | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [filterGrupo, setFilterGrupo] = useState('');
+  const [filterClase, setFilterClase] = useState('');
+  const [clasePage, setClasePage]     = useState(0);
+  const [submissions, setSubmissions] = useState<SubmisionEvidencia[]>([]);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
+  const [preview, setPreview]         = useState<Preview | null>(null);
+  const [zoom, setZoom]               = useState(1);
+  const [pan, setPan]                 = useState({ x: 0, y: 0 });
+  const [dragging, setDragging]       = useState(false);
+  const dragOrigin                    = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const [approving, setApproving]     = useState<string | null>(null);
+  const [notasModal, setNotasModal]   = useState<{ id: string; formId: string } | null>(null);
+  const [notasText, setNotasText]     = useState('');
+
+  // Verificar sesión y cargar datos en una sola pasada
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(async (d: SessionComp) => {
+        setSession(d);
+        // Cargar submissions inmediatamente con el componente de sesión
+        try {
+          const params = new URLSearchParams({ componente: d.compId });
+          const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
+          const data = await res.json();
+          if (res.ok) setSubmissions(data.submissions ?? []);
+        } catch { /* se reintenta con ↻ */ }
+        setAuthLoading(false);
+      })
+      .catch(() => { window.location.href = '/login'; });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentComp = session ? COMPONENTES.find(c => c.id === session.compId) ?? null : null;
+
+  const load = useCallback(async () => {
+    if (!session) return;
+    setLoading(true); setError('');
+    try {
+      const params = new URLSearchParams({ componente: session.compId });
+      if (filterGrupo) params.set('grupo', filterGrupo);
+      const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al cargar');
+      setSubmissions(data.submissions ?? []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error de conexión');
+    } finally { setLoading(false); }
+  }, [session, filterGrupo]);
+
+  useEffect(() => {
+    if (session) {
+      Promise.resolve().then(() => {
+        load();
+      });
+    }
+  }, [session, load]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setFilterClase('');
+      setClasePage(0);
+      setPreview(null);
+    });
+  }, [filterGrupo]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setPreview(null);
+    });
+  }, [filterClase]);
+
+  // Reset zoom/pan when preview image changes
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    });
+  }, [preview?.url]);
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setPreview(null); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
+
+  // Zoom with mouse wheel
+  function onWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    setZoom(z => Math.min(8, Math.max(0.5, z - e.deltaY * 0.001)));
+  }
+
+  // Pan: drag handlers
+  function onMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    setDragging(true);
+    dragOrigin.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
+  }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!dragging) return;
+    const dx = (e.clientX - dragOrigin.current.mx) / zoom;
+    const dy = (e.clientY - dragOrigin.current.my) / zoom;
+    setPan({ x: dragOrigin.current.px + dx, y: dragOrigin.current.py + dy });
+  }
+  function onMouseUp() { setDragging(false); }
+
+  const totalPages     = Math.ceil(CLASES.length / PAGE_SIZE);
+  const clasesPage     = CLASES.slice(clasePage * PAGE_SIZE, (clasePage + 1) * PAGE_SIZE);
+  const clasesConEnvio = new Set(submissions.map(s => s.clase));
+  const estadoPorClase = new Map(submissions.map(s => [s.clase, s.estado]));
+  const filtered       = submissions.filter(s => !filterClase || s.clase === filterClase);
+
+  function openPreview(sub: SubmisionEvidencia, archivo: TallyFile, label: string) {
+    setPreview(p =>
+      p?.url === archivo.url && p.submissionId === sub.submissionId
+        ? null // toggle off si es la misma
+        : { submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label }
+    );
+  }
+
+  async function handleApprove(sub: SubmisionEvidencia, estado: 'aprobada' | 'rechazada' | 'pendiente') {
+    setApproving(sub.submissionId);
+    try {
+      const res = await fetch(`/api/admin/evidencias/${sub.submissionId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado, formId: sub.formId }),
+      });
+      if (!res.ok) throw new Error();
+      setSubmissions(prev => prev.map(s => s.submissionId === sub.submissionId ? { ...s, estado } : s));
+    } catch { alert('No se pudo actualizar el estado'); }
+    finally { setApproving(null); }
+  }
+
+  async function handleSaveNotas() {
+    if (!notasModal) return;
+    setApproving(notasModal.id);
+    const subEstado = submissions.find(s => s.submissionId === notasModal.id)?.estado ?? 'pendiente';
+    try {
+      const res = await fetch(`/api/admin/evidencias/${notasModal.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: subEstado, formId: notasModal.formId, notas: notasText }),
+      });
+      if (!res.ok) throw new Error();
+      setSubmissions(prev => prev.map(s => s.submissionId === notasModal.id ? { ...s, notas: notasText } : s));
+      setNotasModal(null);
+    } catch { alert('No se pudo guardar la nota'); }
+    finally { setApproving(null); }
+  }
+
+  const sBtn = (active = false): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '0 14px', minHeight: 34, borderRadius: 8,
+    border: `1px solid ${C.ghostBorder}`, background: active ? C.lime : C.ghost,
+    color: active ? '#130620' : C.textPrimary, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+  });
+  const primaryBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '0 14px', minHeight: 32, borderRadius: 8, border: 'none',
+    background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.78rem', cursor: 'pointer',
+  };
+  const dangerBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '0 12px', minHeight: 32, borderRadius: 8,
+    border: `1px solid ${C.errorBorder}`, background: C.errorBg,
+    color: C.errorText, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+  };
+
+  // Pantalla de carga de sesión
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ textAlign: 'center', color: C.lime }}>
+          <div style={{ width: 36, height: 36, border: `3px solid rgba(200,255,122,0.2)`, borderTopColor: C.lime, borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
+          <p style={{ color: C.textMuted, fontSize: '0.9rem' }}>Verificando sesión…</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', width: '100vw', maxWidth: '100%', overflowX: 'hidden', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: 'Inter, ui-sans-serif, sans-serif' }}>
+
+      {/* Header */}
+      <header style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '12px 24px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Panel de Coordinador</div>
+            <h1 style={{ fontSize: '1.05rem', fontWeight: 850, color: C.textPrimary, margin: 0 }}>
+              {session?.nombre ?? 'Cargando…'}
+            </h1>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={load} disabled={loading} style={sBtn()}>{loading ? '⟳' : '↻ Actualizar'}</button>
+            <button onClick={handleLogout} style={{ ...sBtn(), color: C.errorText, borderColor: C.errorBorder }}>⎋ Cerrar sesión</button>
+          </div>
+        </div>
+      </header>
+
+      {/* Filtro grupo */}
+      <div style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '9px 24px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <select value={filterGrupo} onChange={e => setFilterGrupo(e.target.value)}
+            style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220 }}>
+            {(currentComp?.grupos ?? session?.grupos ?? []).map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <span style={{ fontSize: '0.74rem', color: C.textMuted }}>
+            {submissions.length} envío{submissions.length !== 1 ? 's' : ''} · {clasesConEnvio.size} clase{clasesConEnvio.size !== 1 ? 's' : ''} con evidencias
+          </span>
+        </div>
+      </div>
+
+      {/* Franja horizontal de clases */}
+      <div style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '10px 24px', flexShrink: 0, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 'max-content' }}>
+          <span style={{ fontSize: '0.6rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4, whiteSpace: 'nowrap' }}>Clase:</span>
+          {/* Pastilla "Todas" */}
+          <button onClick={() => setFilterClase('')}
+            style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 700, border: `1px solid ${!filterClase ? C.lime : C.ghostBorder}`, background: !filterClase ? 'rgba(200,255,122,0.15)' : C.ghost, color: !filterClase ? C.lime : C.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Todas ({submissions.length})
+          </button>
+          {/* Una pastilla por clase */}
+          {CLASES.map(c => {
+            const tiene  = clasesConEnvio.has(c);
+            const estado = estadoPorClase.get(c);
+            const active = filterClase === c;
+            const dotColor = estado === 'aprobada' ? '#4ade80' : estado === 'rechazada' ? '#f87171' : C.lime;
+            const num = c.replace('Clase ', '');
+            return (
+              <button key={c} onClick={() => tiene && setFilterClase(active ? '' : c)}
+                title={c}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: active ? 800 : 600, border: `1px solid ${active ? C.lime : tiene ? C.ghostBorder : 'rgba(255,255,255,0.06)'}`, background: active ? 'rgba(200,255,122,0.15)' : tiene ? C.ghost : 'rgba(255,255,255,0.03)', color: active ? C.lime : tiene ? C.textPrimary : 'rgba(255,255,255,0.2)', cursor: tiene ? 'pointer' : 'default', whiteSpace: 'nowrap', transition: 'all .12s' }}>
+                {num}
+                {tiene && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Body: contenido a pantalla completa */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
+        <main style={{ flex: 1, width: '100%', overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {error && <div style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, borderRadius: 8, padding: '12px 16px', color: C.errorText, fontSize: '0.85rem' }}>{error}</div>}
+          {loading && <div style={{ textAlign: 'center', padding: '80px 0', color: C.textMuted, fontSize: '0.9rem' }}>Cargando evidencias…</div>}
+          {!loading && !error && filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '80px 0', background: C.surface, border: `1px solid ${C.surfaceBorder}`, borderRadius: 12 }}>
+              <p style={{ fontSize: '2.5rem', marginBottom: 8 }}>📋</p>
+              <p style={{ color: C.textMuted, fontSize: '0.9rem' }}>{filterClase ? `${filterClase} aún no tiene evidencias` : 'No hay evidencias cargadas aún'}</p>
+            </div>
+          )}
+
+          {/* ── Vista GRID: carpetas por clase ── */}
+          {!loading && !filterClase && filtered.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 24, alignItems: 'start' }}>
+              {filtered.map(sub => {
+                const totalFotos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
+                const estadoColor = sub.estado === 'aprobada' ? '#4ade80' : sub.estado === 'rechazada' ? '#f87171' : '#fbbf24';
+                const estadoLabel = sub.estado === 'aprobada' ? 'Aprobada' : sub.estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
+                const thumbs      = sub.fotos.flatMap(g => g.archivos).filter(a => a.mimeType?.startsWith('image/')).slice(0, 4);
+                const zipName     = [sub.componenteNombre, sub.grupo, sub.clase]
+                  .map(s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 25))
+                  .join('__');
+
+                // Color de carpeta según estado
+                const folderTab  = sub.estado === 'aprobada' ? '#3a8f5a' : sub.estado === 'rechazada' ? '#8f3a3a' : '#3a5a8f';
+                const folderBody = sub.estado === 'aprobada'
+                  ? 'linear-gradient(160deg,#1a4a30 0%,#0f2e1c 100%)'
+                  : sub.estado === 'rechazada'
+                  ? 'linear-gradient(160deg,#4a1a1a 0%,#2e0f0f 100%)'
+                  : 'linear-gradient(160deg,#1e3a6e 0%,#0f1f3c 100%)';
+
+                return (
+                  <div key={sub.submissionId} className="folder-card"
+                    style={{ position: 'relative', paddingTop: 20, cursor: 'pointer' }}
+                    onClick={() => setFilterClase(sub.clase)}>
+
+                    {/* Pestaña de carpeta */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 18,
+                      width: 90, height: 22,
+                      background: folderTab,
+                      borderRadius: '10px 10px 0 0',
+                      zIndex: 1,
+                    }} />
+
+                    {/* Cuerpo de carpeta */}
+                    <div style={{
+                      background: folderBody,
+                      borderRadius: '0 12px 12px 12px',
+                      border: `1px solid rgba(255,255,255,0.1)`,
+                      overflow: 'hidden',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                      transition: 'transform .12s, box-shadow .12s',
+                    }}>
+
+                      {/* Grid de miniaturas */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', height: 130, gap: 2, padding: 12, paddingBottom: 8 }}>
+                        {thumbs.length > 0
+                          ? thumbs.map((f, i) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={i} src={f.url} alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block' }} />
+                          ))
+                          : (
+                            <div style={{ gridColumn: '1/-1', gridRow: '1/-1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', opacity: 0.4 }}>
+                              📂
+                            </div>
+                          )
+                        }
+                        {/* Rellena espacios vacíos si hay menos de 4 */}
+                        {thumbs.length > 0 && thumbs.length < 4 && Array.from({ length: 4 - thumbs.length }).map((_, i) => (
+                          <div key={`empty-${i}`} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 6 }} />
+                        ))}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ padding: '8px 14px 12px' }}>
+                        <p style={{ margin: '0 0 2px', fontSize: '1.05rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
+                          {sub.clase}
+                        </p>
+                        <p style={{ margin: '0 0 8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                          {totalFotos} archivo{totalFotos !== 1 ? 's' : ''}
+                        </p>
+
+                        {/* Estado + fecha */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.68rem', fontWeight: 700, color: estadoColor }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: estadoColor, flexShrink: 0 }} />
+                            {estadoLabel}
+                          </span>
+                          <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.28)' }}>
+                            {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </div>
+
+                        {/* Botones */}
+                        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => setFilterClase(sub.clase)}
+                            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 10px', minHeight: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
+                            Abrir
+                          </button>
+                          <a
+                            href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`}
+                            download={`${zipName}.zip`}
+                            title={`Descargar ${sub.clase} como ZIP`}
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 10px', minHeight: 30, borderRadius: 8, border: 'none', background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.72rem', textDecoration: 'none', flexShrink: 0 }}>
+                            📥 ZIP
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Vista DETALLE: cuando hay una clase seleccionada ── */}
+          {!loading && !!filterClase && filtered.map(sub => {
+            const totalArchivos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
+            const estadoColor    = sub.estado === 'aprobada' ? C.lime : sub.estado === 'rechazada' ? C.errorText : '#FDE68A';
+            const estadoBg       = sub.estado === 'aprobada' ? 'rgba(200,255,122,0.12)' : sub.estado === 'rechazada' ? C.errorBg : 'rgba(253,230,138,0.12)';
+            const estadoBorder   = sub.estado === 'aprobada' ? 'rgba(200,255,122,0.28)' : sub.estado === 'rechazada' ? C.errorBorder : C.surfaceBorder;
+            const estadoLabel    = sub.estado === 'aprobada' ? 'Aprobada' : sub.estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
+            const subPreview     = preview?.submissionId === sub.submissionId ? preview : null;
+
+            // Todas las fotos del envío en una sola lista plana para el panel
+            const todasFotos = sub.fotos.flatMap(g => g.archivos.map(a => ({ ...a, label: g.label })));
+
+            return (
+              <div key={sub.submissionId}
+                style={{ background: C.surface, border: `1px solid ${estadoBorder}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 16px 60px rgba(0,0,0,0.28)' }}>
+
+                {/* Cabecera */}
+                <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.rowBorder}`, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <p style={{ fontWeight: 700, color: C.textPrimary, margin: '0 0 2px', fontSize: '0.95rem' }}>{sub.grupo}</p>
+                    <p style={{ fontWeight: 800, color: C.lime, margin: '0 0 2px', fontSize: '0.9rem' }}>{sub.clase}</p>
+                    <p style={{ color: C.textMuted, margin: 0, fontSize: '0.72rem' }}>
+                      {new Date(sub.fechaEnvio).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      &nbsp;· {totalArchivos} archivo{totalArchivos !== 1 ? 's' : ''}
+                    </p>
+                    {sub.notas && <p style={{ marginTop: 6, fontSize: '0.72rem', color: '#D8C8F6', background: 'rgba(216,200,246,0.1)', borderRadius: 6, padding: '4px 8px', display: 'inline-block' }}>📝 {sub.notas}</p>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: estadoBg, color: estadoColor }}>● {estadoLabel}</span>
+                    {sub.estado !== 'aprobada' && (
+                      <button onClick={() => handleApprove(sub, 'aprobada')} disabled={approving === sub.submissionId} style={{ ...primaryBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
+                        {approving === sub.submissionId ? '…' : '✓ Aprobar'}
+                      </button>
+                    )}
+                    {sub.estado !== 'rechazada' && (
+                      <button onClick={() => handleApprove(sub, 'rechazada')} disabled={approving === sub.submissionId} style={{ ...dangerBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
+                        ✕ Rechazar
+                      </button>
+                    )}
+                    {sub.estado !== 'pendiente' && (
+                      <button onClick={() => handleApprove(sub, 'pendiente')} disabled={approving === sub.submissionId} style={{ ...sBtn(), opacity: approving === sub.submissionId ? .45 : 1, fontSize: '0.72rem' }}>Deshacer</button>
+                    )}
+                    <button onClick={() => { setNotasModal({ id: sub.submissionId, formId: sub.formId }); setNotasText(sub.notas ?? ''); }} style={sBtn()}>📝 Nota</button>
+                    <a
+                      href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent([sub.componenteNombre, sub.grupo, sub.clase].map(s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,25)).join('__'))}`}
+                      download
+                      style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 12px', minHeight:32, borderRadius:8, border:'none', background:C.lime, color:'#130620', fontWeight:850, fontSize:'0.75rem', textDecoration:'none' }}>
+                      📥 ZIP
+                    </a>
+                    <button onClick={() => setFilterClase('')} style={{ ...sBtn(), fontSize: '0.72rem' }}>← Volver</button>
+                  </div>
+                </div>
+
+                {/* Fotos: fila horizontal con tamaño controlado */}
+                <div style={{ padding: '12px 20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 10, flexWrap: 'nowrap', overflowX: 'auto' }}>
+                    {todasFotos.map((archivo, ai) => {
+                      const isSelected = subPreview?.url === archivo.url;
+                      return (
+                        <div key={ai} className="thumb-wrap"
+                          style={{ flex: '0 0 150px', width: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                          {archivo.mimeType?.startsWith('image/') ? (
+                            <button
+                              onClick={() => openPreview(sub, archivo, archivo.label)}
+                              title="Ver en detalle"
+                              style={{ width: 150, height: 150, borderRadius: 8, overflow: 'hidden', border: isSelected ? `2px solid ${C.lime}` : `1px solid ${C.surfaceBorder}`, cursor: 'pointer', padding: 0, background: 'none', position: 'relative', boxShadow: isSelected ? `0 0 0 3px rgba(200,255,122,0.22)` : 'none', transition: 'all .15s', flexShrink: 0 }}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              {isSelected && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(200,255,122,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: '1.6rem' }}>🔍</span>
+                                </div>
+                              )}
+                            </button>
+                          ) : (
+                            <div style={{ width: 150, height: 150, borderRadius: 8, border: `1px solid ${C.surfaceBorder}`, background: C.input, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: '1.8rem' }}>📄</span>
+                            </div>
+                          )}
+                          <span style={{ fontSize: '0.58rem', color: C.lime, fontWeight: 700, textAlign: 'center', lineHeight: 1.2, width: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {archivo.label.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}
+                          </span>
+                          <a href={`/api/admin/proxy?url=${encodeURIComponent(archivo.url)}&name=${encodeURIComponent(archivo.name)}`}
+                            download={archivo.name}
+                            style={{ fontSize: '0.58rem', color: C.textMuted, textDecoration: 'none', fontWeight: 600 }}>
+                            ↓ Descargar
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Visor interno con zoom + arrastre ── */}
+                  {subPreview && (
+                    <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid rgba(200,255,122,0.25)`, background: C.previewBg }}>
+
+                      {/* Barra de controles */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', borderBottom: `1px solid ${C.rowBorder}`, gap: 10 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontSize: '0.6rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Previsualización</span>
+                          <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: C.textPrimary, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subPreview.label}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                          {/* Nav fotos */}
+                          <button onClick={() => { const i = todasFotos.findIndex(f => f.url === subPreview.url); const p = todasFotos[(i - 1 + todasFotos.length) % todasFotos.length]; setPreview({ submissionId: sub.submissionId, url: p.url, name: p.name, label: p.label }); }} style={sBtn()}>‹</button>
+                          <span style={{ fontSize: '0.7rem', color: C.textMuted, minWidth: 32, textAlign: 'center' }}>{todasFotos.findIndex(f => f.url === subPreview.url) + 1}/{todasFotos.length}</span>
+                          <button onClick={() => { const i = todasFotos.findIndex(f => f.url === subPreview.url); const n = todasFotos[(i + 1) % todasFotos.length]; setPreview({ submissionId: sub.submissionId, url: n.url, name: n.name, label: n.label }); }} style={sBtn()}>›</button>
+                          {/* Zoom */}
+                          <button onClick={() => setZoom(z => Math.min(8, z + 0.25))} style={sBtn()} title="Acercar">＋</button>
+                          <span style={{ fontSize: '0.7rem', color: C.textMuted, minWidth: 34, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+                          <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} style={sBtn()} title="Alejar">－</button>
+                          <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={sBtn()} title="Restablecer">⊙</button>
+                          {/* Descarga y cerrar */}
+                          <a href={`/api/admin/proxy?url=${encodeURIComponent(subPreview.url)}&name=${encodeURIComponent(subPreview.name)}`} download={subPreview.name} style={{ ...primaryBtn, textDecoration: 'none' }}>↓</a>
+                          <button onClick={() => setPreview(null)} style={{ ...sBtn(), padding: '0 10px' }} title="Cerrar (ESC)">×</button>
+                        </div>
+                      </div>
+
+                      {/* Área de imagen — zoom + arrastre */}
+                      <div
+                        onWheel={onWheel}
+                        onMouseDown={onMouseDown}
+                        onMouseMove={onMouseMove}
+                        onMouseUp={onMouseUp}
+                        onMouseLeave={onMouseUp}
+                        style={{ height: 420, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.previewBg, cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={subPreview.url}
+                          alt={subPreview.name}
+                          draggable={false}
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6, boxShadow: '0 6px 32px rgba(0,0,0,0.5)', transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`, transformOrigin: 'center center', transition: dragging ? 'none' : 'transform .1s ease', pointerEvents: 'none' }}
+                        />
+                      </div>
+                      <p style={{ margin: 0, padding: '6px 14px', fontSize: '0.65rem', color: C.textMuted, borderTop: `1px solid ${C.rowBorder}` }}>
+                        Rueda del mouse para zoom · Clic y arrastra para mover · ESC para cerrar
+                      </p>
+                    </div>
+                  )}
+
+                  {sub.fotos.every(f => f.archivos.length === 0) && (
+                    <p style={{ color: C.textMuted, fontSize: '0.85rem', fontStyle: 'italic' }}>Sin archivos en este envío</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </main>
+      </div>
+
+      {/* Modal notas */}
+      {notasModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: C.surface, border: `1px solid ${C.surfaceBorder}`, borderRadius: 12, padding: 24, width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 70px rgba(0,0,0,0.4)' }}>
+            <h3 style={{ margin: 0, color: C.textPrimary, fontWeight: 800, fontSize: '1rem' }}>Agregar / editar nota</h3>
+            <textarea value={notasText} onChange={e => setNotasText(e.target.value)} rows={4}
+              placeholder="Escribe una observación..."
+              style={{ width: '100%', background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '10px 12px', fontSize: '0.85rem', resize: 'none', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setNotasModal(null)} style={sBtn()}>Cancelar</button>
+              <button onClick={handleSaveNotas} disabled={approving === notasModal.id} style={{ ...primaryBtn, opacity: approving === notasModal.id ? .45 : 1, padding: '0 20px', minHeight: 36 }}>
+                {approving === notasModal.id ? 'Guardando…' : 'Guardar nota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        * { box-sizing: border-box; }
+        .thumb-wrap button:hover { opacity: 0.88; transform: scale(1.03); }
+        .folder-card:hover > div:last-child { transform: translateY(-3px); box-shadow: 0 14px 48px rgba(0,0,0,0.65) !important; }
+        .folder-card:hover > div:first-child { filter: brightness(1.15); }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 3px; }
+        select option { background: #25143F; color: #F7F2FF; }
+      `}</style>
+    </div>
+  );
+}

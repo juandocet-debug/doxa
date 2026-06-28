@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Meta {
+  id          String       @id @default(cuid())
+  nombre      String
+  descripcion String?
+  estado      String       @default("activa")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  componentes Componente[]
+  registros   Registro[]
+}
+
+model Componente {
+  id          String     @id @default(cuid())
+  metaId      String
+  nombre      String
+  descripcion String?
+  estado      String     @default("activo")
+  orden       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  meta        Meta       @relation(fields: [metaId], references: [id])
+  acciones         Accion[]
+  registros        Registro[]
+  tallyFormulario  TallyFormulario?
+  @@index([metaId])
+}
+
+model Accion {
+  id                 String               @id @default(cuid())
+  componenteId       String
+  nombre             String
+  descripcion        String?
+  requiereInstancia  Boolean              @default(false)
+  tipoInstancia      String?
+  cantidadInstancias Int?
+  estado             String               @default("activa")
+  orden              Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  componente         Componente           @relation(fields: [componenteId], references: [id])
+  instancias         InstanciaAccion[]
+  evidenciasReq      EvidenciaRequerida[]
+  registros          Registro[]
+  @@index([componenteId])
+}
+
+model InstanciaAccion {
+  id        String     @id @default(cuid())
+  accionId  String
+  nombre    String
+  numero    Int?
+  tipo      String?
+  estado    String     @default("activa")
+  orden     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  accion    Accion     @relation(fields: [accionId], references: [id])
+  registros Registro[]
+  @@index([accionId])
+}
+
+model EvidenciaRequerida {
+  id                 String             @id @default(cuid())
+  accionId           String
+  nombre             String
+  tipoArchivo        String             @default("foto")
+  multiple           Boolean            @default(true)
+  obligatorio        Boolean            @default(true)
+  orden              Int                @default(0)
+  estado             String             @default("activa")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  accion             Accion             @relation(fields: [accionId], references: [id])
+  evidenciasCargadas EvidenciaCargada[]
+  @@index([accionId])
+}
+
+model Registro {
+  id                String             @id @default(cuid())
+  metaId            String
+  componenteId      String
+  accionId          String
+  instanciaAccionId String?
+  fechaActividad    DateTime
+  responsable       String
+  municipio         String
+  localidad         String?
+  lugar             String?
+  observaciones     String?
+  estado            String             @default("borrador")
+  createdBy         String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  meta              Meta               @relation(fields: [metaId], references: [id])
+  componente        Componente         @relation(fields: [componenteId], references: [id])
+  accion            Accion             @relation(fields: [accionId], references: [id])
+  instancia         InstanciaAccion?   @relation(fields: [instanciaAccionId], references: [id])
+  evidencias        EvidenciaCargada[]
+  @@index([metaId])
+  @@index([componenteId])
+  @@index([accionId])
+  @@index([instanciaAccionId])
+  @@index([estado])
+  @@index([createdBy])
+}
+
+model EvidenciaCargada {
+  id                   String              @id @default(cuid())
+  registroId           String
+  evidenciaRequeridaId String
+  estado               String              @default("pendiente")
+  observacionRevision  String?
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  registro             Registro            @relation(fields: [registroId], references: [id], onDelete: Cascade)
+  evidenciaRequerida   EvidenciaRequerida  @relation(fields: [evidenciaRequeridaId], references: [id])
+  archivos             ArchivoEvidencia[]
+  @@index([registroId])
+  @@index([estado])
+}
+
+model TallyFormulario {
+  id           String     @id @default(cuid())
+  componenteId String     @unique
+  tallyFormId  String     @unique
+  tallyFormUrl String
+  titulo       String
+  createdAt    DateTime   @default(now())
+  componente   Componente @relation(fields: [componenteId], references: [id])
+  @@index([componenteId])
+}
+
+model ArchivoEvidencia {
+  id                 String           @id @default(cuid())
+  evidenciaCargadaId String
+  nombreOriginal     String
+  nombreAlmacenado   String
+  urlArchivo         String
+  tipoMime           String
+  extension          String
+  peso               Int
+  uploadedBy         String
+  createdAt          DateTime         @default(now())
+  evidencia          EvidenciaCargada @relation(fields: [evidenciaCargadaId], references: [id], onDelete: Cascade)
+  @@index([evidenciaCargadaId])
+}
+
+model AprobacionTally {
+  id                String   @id @default(cuid())
+  tallySubmissionId String   @unique
+  formId            String
+  estado            String   @default("pendiente")
+  notas             String?
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+  @@index([formId])
+  @@index([estado])
+}
