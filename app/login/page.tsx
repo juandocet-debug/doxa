@@ -82,22 +82,17 @@ function LoginForm() {
       {/* Panel Izquierdo - Imagen de fondo y branding */}
       <div className="login-left-panel">
         <div className="brand-header">
-          <img src="/acced/logo.png" alt="DOXA Logo" className="brand-logo" />
+          <img src="/acced/logo.png" alt="Agora Logo" className="brand-logo" />
           <div className="brand-divider" />
           <div className="brand-text">
-            <span className="brand-title">Sistema de Evidencias</span>
-            <span className="brand-subtitle">
-              <span className="text-highlight">Fotográficas</span> y seguimiento
-            </span>
+            <span className="brand-title">Plataforma de gobernanza</span>
+            <span className="brand-title">institucional</span>
           </div>
         </div>
 
         <div className="feature-card">
-          <svg className="shield-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
           <span className="feature-text">
-            Plataforma de gestión y seguimiento de registros fotográficos de proyecto
+            Herramientas que fortalecen la gestión, promueven la transparencia y generan valor público.
           </span>
         </div>
       </div>
@@ -251,45 +246,28 @@ function LoginForm() {
         }
 
         .brand-title {
-          font-size: 1.1rem;
-          font-weight: 600;
-          color: ${C.primary};
-          letter-spacing: -0.01em;
-        }
-
-        .brand-subtitle {
-          font-size: 0.9rem;
-          color: ${C.muted};
-        }
-
-        .text-highlight {
-          color: ${C.lime};
-          font-weight: 600;
+          font-size: 14px;
+          font-weight: 500;
+          color: rgba(255,255,255,0.75);
+          line-height: 20px;
         }
 
         .feature-card {
           display: flex;
           align-items: center;
           gap: 16px;
-          background-color: rgba(16, 34, 23, 0.25);
-          border: 1px solid rgba(16, 34, 23, 0.6);
-          padding: 16px 20px;
+          background-color: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          padding: 16px;
           border-radius: 12px;
-          max-width: 440px;
+          max-width: 400px;
           backdrop-filter: blur(8px);
         }
 
-        .shield-icon {
-          width: 24px;
-          height: 24px;
-          color: ${C.lime};
-          flex-shrink: 0;
-        }
-
         .feature-text {
-          font-size: 0.85rem;
-          line-height: 1.5;
-          color: ${C.muted};
+          font-size: 13px;
+          color: rgba(255,255,255,0.65);
+          line-height: 19px;
         }
 
         /* Panel Derecho */
