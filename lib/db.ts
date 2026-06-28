@@ -5,7 +5,8 @@ const { PrismaClient } = require('@prisma/client');
 
 function createPrisma() {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) {
+  const isVercel = process.env.VERCEL === '1';
+  if (!dbUrl || isVercel) {
     return new PrismaClient();
   }
   if (dbUrl.startsWith('file:') || dbUrl.startsWith('sqlite:')) {
