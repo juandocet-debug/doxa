@@ -27,6 +27,7 @@ export async function GET(req: Request) {
   try {
     const currentUserId = await requireSession();
     const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
+    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
 
     const { searchParams } = new URL(req.url);
     const formId       = searchParams.get('formId');
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
     }
 
     // Access control: Ensure coordinator owns this form
-    if (!isSuperAdmin) {
+    if (!hasGlobalRead) {
       const tallyForm = await prisma.tallyFormulario.findUnique({
         where: { tallyFormId: formId }
       });

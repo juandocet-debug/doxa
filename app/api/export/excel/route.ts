@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     const currentUserId = await requireSession();
     const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
+    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
 
     const { searchParams } = new URL(request.url);
     const metaId = searchParams.get('metaId');
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (metaId) where.metaId = metaId;
     
     // Access control: Non-superadmin is locked to their own component
-    if (!isSuperAdmin) {
+    if (!hasGlobalRead) {
       where.componenteId = currentUserId;
     } else {
       if (componenteId) where.componenteId = componenteId;

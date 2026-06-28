@@ -63,13 +63,14 @@ export async function GET(req: Request) {
   try {
     const currentUserId = await requireSession();
     const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
+    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
 
     const { searchParams } = new URL(req.url);
     const filterComponente = searchParams.get('componente');
     const filterGrupo = searchParams.get('grupo');
 
     // Access control: Non-superadmin is locked to their own component
-    const targetComponente = isSuperAdmin ? filterComponente : currentUserId;
+    const targetComponente = hasGlobalRead ? filterComponente : currentUserId;
 
     const componentes = targetComponente
       ? COMPONENTES.filter((c) => c.id === targetComponente)

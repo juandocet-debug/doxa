@@ -11,6 +11,7 @@ export async function GET(
   try {
     const currentUserId = await requireSession();
     const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
+    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
 
     const { id } = await params;
 
@@ -24,7 +25,7 @@ export async function GET(
       return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
     }
 
-    if (!isSuperAdmin && existing.componenteId !== currentUserId) {
+    if (!hasGlobalRead && existing.componenteId !== currentUserId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

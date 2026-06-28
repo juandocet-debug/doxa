@@ -62,6 +62,7 @@ interface SessionComp {
 
 export default function AdminEvidenciasPage() {
   const [session, setSession]         = useState<SessionComp | null>(null);
+  const [selectedCompId, setSelectedCompId] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [filterGrupo, setFilterGrupo] = useState('');
   const [filterClase, setFilterClase] = useState('');
@@ -84,9 +85,11 @@ export default function AdminEvidenciasPage() {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(async (d: SessionComp) => {
         setSession(d);
+        const initialCompId = d.compId === 'verificador' ? 'comp1' : d.compId;
+        setSelectedCompId(initialCompId);
         // Cargar submissions inmediatamente con el componente de sesión
         try {
-          const params = new URLSearchParams({ componente: d.compId });
+          const params = new URLSearchParams({ componente: initialCompId });
           const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
           const data = await res.json();
           if (res.ok) setSubmissions(data.submissions ?? []);
@@ -97,13 +100,14 @@ export default function AdminEvidenciasPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const currentComp = session ? COMPONENTES.find(c => c.id === session.compId) ?? null : null;
+  const isReadOnly = session?.compId === 'verificador';
+  const currentComp = COMPONENTES.find(c => c.id === selectedCompId) ?? null;
 
   const load = useCallback(async () => {
-    if (!session) return;
+    if (!selectedCompId) return;
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ componente: session.compId });
+      const params = new URLSearchParams({ componente: selectedCompId });
       if (filterGrupo) params.set('grupo', filterGrupo);
       const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
       const data = await res.json();
@@ -112,7 +116,7 @@ export default function AdminEvidenciasPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error de conexión');
     } finally { setLoading(false); }
-  }, [session, filterGrupo]);
+  }, [selectedCompId, filterGrupo]);
 
   useEffect(() => {
     if (session) {
@@ -255,9 +259,11 @@ export default function AdminEvidenciasPage() {
       <header style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '12px 24px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div>
-            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Panel de Coordinador</div>
+            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>
+              {isReadOnly ? 'Acceso de Consulta' : 'Panel de Coordinador'}
+            </div>
             <h1 style={{ fontSize: '1.05rem', fontWeight: 850, color: C.textPrimary, margin: 0 }}>
-              {session?.nombre ?? 'Cargando…'}
+              {isReadOnly ? 'Verificador General' : (session?.nombre ?? 'Cargando…')}
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -270,9 +276,16 @@ export default function AdminEvidenciasPage() {
       {/* Filtro grupo */}
       <div style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '9px 24px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          {isReadOnly && (
+            <select value={selectedCompId} onChange={e => { setSelectedCompId(e.target.value); setFilterGrupo(''); }}
+              style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220, maxWidth: 300 }}>
+              {COMPONENTES.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          )}
           <select value={filterGrupo} onChange={e => setFilterGrupo(e.target.value)}
-            style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220 }}>
-            {(currentComp?.grupos ?? session?.grupos ?? []).map(g => <option key={g} value={g}>{g}</option>)}
+            style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220, maxWidth: 300 }}>
+            <option value="">— Todos los grupos —</option>
+            {(currentComp?.grupos ?? []).map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <span style={{ fontSize: '0.74rem', color: C.textMuted }}>
             {submissions.length} envío{submissions.length !== 1 ? 's' : ''} · {clasesConEnvio.size} clase{clasesConEnvio.size !== 1 ? 's' : ''} con evidencias
@@ -455,20 +468,24 @@ export default function AdminEvidenciasPage() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: estadoBg, color: estadoColor }}>● {estadoLabel}</span>
-                    {sub.estado !== 'aprobada' && (
-                      <button onClick={() => handleApprove(sub, 'aprobada')} disabled={approving === sub.submissionId} style={{ ...primaryBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
-                        {approving === sub.submissionId ? '…' : '✓ Aprobar'}
-                      </button>
+                    {!isReadOnly && (
+                      <>
+                        {sub.estado !== 'aprobada' && (
+                          <button onClick={() => handleApprove(sub, 'aprobada')} disabled={approving === sub.submissionId} style={{ ...primaryBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
+                            {approving === sub.submissionId ? '…' : '✓ Aprobar'}
+                          </button>
+                        )}
+                        {sub.estado !== 'rechazada' && (
+                          <button onClick={() => handleApprove(sub, 'rechazada')} disabled={approving === sub.submissionId} style={{ ...dangerBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
+                            ✕ Rechazar
+                          </button>
+                        )}
+                        {sub.estado !== 'pendiente' && (
+                          <button onClick={() => handleApprove(sub, 'pendiente')} disabled={approving === sub.submissionId} style={{ ...sBtn(), opacity: approving === sub.submissionId ? .45 : 1, fontSize: '0.72rem' }}>Deshacer</button>
+                        )}
+                        <button onClick={() => { setNotasModal({ id: sub.submissionId, formId: sub.formId }); setNotasText(sub.notas ?? ''); }} style={sBtn()}>📝 Nota</button>
+                      </>
                     )}
-                    {sub.estado !== 'rechazada' && (
-                      <button onClick={() => handleApprove(sub, 'rechazada')} disabled={approving === sub.submissionId} style={{ ...dangerBtn, opacity: approving === sub.submissionId ? .45 : 1 }}>
-                        ✕ Rechazar
-                      </button>
-                    )}
-                    {sub.estado !== 'pendiente' && (
-                      <button onClick={() => handleApprove(sub, 'pendiente')} disabled={approving === sub.submissionId} style={{ ...sBtn(), opacity: approving === sub.submissionId ? .45 : 1, fontSize: '0.72rem' }}>Deshacer</button>
-                    )}
-                    <button onClick={() => { setNotasModal({ id: sub.submissionId, formId: sub.formId }); setNotasText(sub.notas ?? ''); }} style={sBtn()}>📝 Nota</button>
                     <a
                       href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent([sub.componenteNombre, sub.grupo, sub.clase].map(s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,25)).join('__'))}`}
                       download

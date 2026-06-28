@@ -9,6 +9,9 @@ export async function PATCH(
 ) {
   try {
     const currentUserId = await requireSession();
+    if (currentUserId === 'verificador') {
+      return NextResponse.json({ error: 'No autorizado (Solo lectura)' }, { status: 403 });
+    }
     const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
 
     const { id } = await params;
