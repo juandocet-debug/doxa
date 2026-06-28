@@ -4,7 +4,10 @@ import path from 'path';
 const { PrismaClient } = require('@prisma/client');
 
 function createPrisma() {
-  const dbUrl = process.env.DATABASE_URL || 'file:./prisma/dev.db';
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    return new PrismaClient();
+  }
   if (dbUrl.startsWith('file:') || dbUrl.startsWith('sqlite:')) {
     const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
     const rawPath = dbUrl.replace(/^(file:|sqlite:)/, '');
