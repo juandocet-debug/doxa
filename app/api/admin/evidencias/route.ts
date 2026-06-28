@@ -69,6 +69,9 @@ export async function GET(req: Request) {
     const filterComponente = searchParams.get('componente');
     const filterGrupo = searchParams.get('grupo');
 
+    const filterDesde = searchParams.get('desde');
+    const filterHasta = searchParams.get('hasta');
+
     // Access control: Non-superadmin is locked to their own component
     const targetComponente = hasGlobalRead ? filterComponente : currentUserId;
 
@@ -96,6 +99,10 @@ export async function GET(req: Request) {
 
         const grupo = grupoQ ? extractAnswer(getResp(grupoQ.id)) : '';
         const clase = claseQ ? extractAnswer(getResp(claseQ.id)) : '';
+
+        const fechaEnvio = sub.submittedAt ?? sub.createdAt;
+        if (filterDesde && new Date(fechaEnvio) < new Date(filterDesde)) continue;
+        if (filterHasta && new Date(fechaEnvio) > new Date(filterHasta + 'T23:59:59')) continue;
 
         if (filterGrupo && grupo !== filterGrupo) continue;
 

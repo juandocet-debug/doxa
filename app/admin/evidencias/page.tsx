@@ -66,6 +66,8 @@ export default function AdminEvidenciasPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [filterGrupo, setFilterGrupo] = useState('');
   const [filterClase, setFilterClase] = useState('');
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
   const [clasePage, setClasePage]     = useState(0);
   const [submissions, setSubmissions] = useState<SubmisionEvidencia[]>([]);
   const [loading, setLoading]         = useState(false);
@@ -78,6 +80,8 @@ export default function AdminEvidenciasPage() {
   const [approving, setApproving]     = useState<string | null>(null);
   const [notasModal, setNotasModal]   = useState<{ id: string; formId: string } | null>(null);
   const [notasText, setNotasText]     = useState('');
+  const [uploadingDrive, setUploadingDrive] = useState<string | null>(null);
+  const [driveResultModal, setDriveResultModal] = useState<{ success: boolean; message: string } | null>(null);
 
   // Verificar sesión y cargar datos en una sola pasada
   useEffect(() => {
@@ -109,6 +113,8 @@ export default function AdminEvidenciasPage() {
     try {
       const params = new URLSearchParams({ componente: selectedCompId });
       if (filterGrupo) params.set('grupo', filterGrupo);
+      if (filterDesde) params.set('desde', filterDesde);
+      if (filterHasta) params.set('hasta', filterHasta);
       const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al cargar');
@@ -116,7 +122,7 @@ export default function AdminEvidenciasPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error de conexión');
     } finally { setLoading(false); }
-  }, [selectedCompId, filterGrupo]);
+  }, [selectedCompId, filterGrupo, filterDesde, filterHasta]);
 
   useEffect(() => {
     if (session) {
@@ -252,6 +258,32 @@ export default function AdminEvidenciasPage() {
     window.location.href = '/login';
   }
 
+  async function handleUploadToDrive(sub: SubmisionEvidencia) {
+    setUploadingDrive(sub.submissionId);
+    try {
+      const zipName = [sub.componenteNombre, sub.grupo, sub.clase].map(s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,25)).join('__');
+      const res = await fetch('/api/admin/drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formId: sub.formId, submissionId: sub.submissionId, zipName }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === 'CONFIG_MISSING') {
+          setDriveResultModal({ success: false, message: data.message });
+        } else {
+          setDriveResultModal({ success: false, message: data.error || 'Error al subir a Google Drive' });
+        }
+        return;
+      }
+      setDriveResultModal({ success: true, message: data.message || 'Se subió exitosamente a Google Drive.' });
+    } catch {
+      setDriveResultModal({ success: false, message: 'Error de red al intentar conectar con Google Drive.' });
+    } finally {
+      setUploadingDrive(null);
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', width: '100vw', maxWidth: '100%', overflowX: 'hidden', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: 'Inter, ui-sans-serif, sans-serif' }}>
 
@@ -287,6 +319,21 @@ export default function AdminEvidenciasPage() {
             <option value="">— Todos los grupos —</option>
             {(currentComp?.grupos ?? []).map(g => <option key={g} value={g}>{g}</option>)}
           </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.74rem', color: C.textMuted }}>Desde:</span>
+            <input type="date" value={filterDesde} onChange={e => setFilterDesde(e.target.value)}
+              style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 10px', minHeight: 36, fontSize: '0.82rem', outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.74rem', color: C.textMuted }}>Hasta:</span>
+            <input type="date" value={filterHasta} onChange={e => setFilterHasta(e.target.value)}
+              style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 10px', minHeight: 36, fontSize: '0.82rem', outline: 'none' }} />
+          </div>
+          {(filterDesde || filterHasta) && (
+            <button onClick={() => { setFilterDesde(''); setFilterHasta(''); }} style={{ ...sBtn(), fontSize: '0.75rem', padding: '0 10px', minHeight: 28 }}>
+              ✕ Limpiar Fechas
+            </button>
+          )}
           <span style={{ fontSize: '0.74rem', color: C.textMuted }}>
             {submissions.length} envío{submissions.length !== 1 ? 's' : ''} · {clasesConEnvio.size} clase{clasesConEnvio.size !== 1 ? 's' : ''} con evidencias
           </span>
@@ -492,6 +539,13 @@ export default function AdminEvidenciasPage() {
                       style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 12px', minHeight:32, borderRadius:8, border:'none', background:C.lime, color:'#130620', fontWeight:850, fontSize:'0.75rem', textDecoration:'none' }}>
                       📥 ZIP
                     </a>
+                    <button
+                      onClick={() => handleUploadToDrive(sub)}
+                      disabled={uploadingDrive === sub.submissionId}
+                      style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 12px', minHeight:32, borderRadius:8, border:'none', background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: uploadingDrive === sub.submissionId ? 0.6 : 1, boxShadow: '0 2px 8px rgba(16,185,129,0.3)' }}
+                    >
+                      {uploadingDrive === sub.submissionId ? '📤 Subiendo...' : '☁️ Drive'}
+                    </button>
                     <button onClick={() => setFilterClase('')} style={{ ...sBtn(), fontSize: '0.72rem' }}>← Volver</button>
                   </div>
                 </div>
@@ -607,6 +661,39 @@ export default function AdminEvidenciasPage() {
               <button onClick={() => setNotasModal(null)} style={sBtn()}>Cancelar</button>
               <button onClick={handleSaveNotas} disabled={approving === notasModal.id} style={{ ...primaryBtn, opacity: approving === notasModal.id ? .45 : 1, padding: '0 20px', minHeight: 36 }}>
                 {approving === notasModal.id ? 'Guardando…' : 'Guardar nota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de resultado de Google Drive */}
+      {driveResultModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <div style={{ background: C.surface, border: `1px solid ${driveResultModal.success ? C.lime : C.errorBorder}`, borderRadius: 14, padding: '24px 28px', maxWidth: 500, width: '100%', boxShadow: '0 20px 80px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <span style={{ fontSize: '1.8rem' }}>{driveResultModal.success ? '✅' : '⚠️'}</span>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 850, color: C.textPrimary, margin: 0 }}>
+                {driveResultModal.success ? 'Envío Exitoso' : 'Error de Carga'}
+              </h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: C.textMuted, lineHeight: 1.6, margin: '0 0 20px' }}>
+              {driveResultModal.message}
+            </p>
+            {!driveResultModal.success && driveResultModal.message.includes('GOOGLE_SERVICE_ACCOUNT_JSON') && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 14, fontSize: '0.78rem', color: C.textMuted, lineHeight: 1.5, marginBottom: 20 }}>
+                <strong style={{ color: C.lime }}>Instrucciones de configuración:</strong>
+                <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                  <li>Crea una cuenta de servicio en Google Cloud Console.</li>
+                  <li>Descarga la llave en formato JSON.</li>
+                  <li>Agrega la variable <code style={{ color: C.lime }}>GOOGLE_SERVICE_ACCOUNT_JSON</code> en Railway/Vercel con el JSON completo.</li>
+                  <li>Crea una carpeta en Google Drive, compártela con el email de la cuenta de servicio y agrega su ID en <code style={{ color: C.lime }}>GOOGLE_DRIVE_FOLDER_ID</code>.</li>
+                </ol>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setDriveResultModal(null)} style={{ ...primaryBtn, padding: '0 20px', minHeight: 36 }}>
+                Entendido
               </button>
             </div>
           </div>
