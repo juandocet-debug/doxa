@@ -32,23 +32,23 @@ interface Preview {
 }
 
 const C = {
-  bg:            'linear-gradient(135deg, #10071F 0%, #24104B 52%, #421B6D 100%)',
-  surface:       'rgba(20,8,42,0.88)',
-  surfaceBorder: 'rgba(203,170,255,0.22)',
-  filter:        'rgba(17,9,35,0.72)',
-  filterBorder:  'rgba(255,255,255,0.14)',
-  ghost:         'rgba(255,255,255,0.11)',
-  ghostBorder:   'rgba(255,255,255,0.16)',
-  input:         'rgba(255,255,255,0.08)',
-  inputBorder:   'rgba(255,255,255,0.18)',
-  lime:          '#C8FF7A',
-  textPrimary:   '#F7F2FF',
-  textMuted:     '#CFC2DF',
-  rowBorder:     'rgba(255,255,255,0.1)',
-  errorBg:       'rgba(255,77,121,0.18)',
-  errorBorder:   'rgba(255,77,121,0.35)',
-  errorText:     '#FFE6EC',
-  previewBg:     'rgba(10,4,25,0.95)',
+  bg:            'linear-gradient(135deg, #020604 0%, #06110a 52%, #0b2214 100%)',
+  surface:       'rgba(4,10,6,0.92)',
+  surfaceBorder: 'rgba(16,185,129,0.22)',
+  filter:        'rgba(3,8,5,0.8)',
+  filterBorder:  'rgba(255,255,255,0.1)',
+  ghost:         'rgba(255,255,255,0.06)',
+  ghostBorder:   'rgba(255,255,255,0.1)',
+  input:         'rgba(255,255,255,0.04)',
+  inputBorder:   'rgba(255,255,255,0.08)',
+  lime:          '#10B981', // Emerald green
+  textPrimary:   '#F2FFF6',
+  textMuted:     '#9CB0A4',
+  rowBorder:     'rgba(255,255,255,0.06)',
+  errorBg:       'rgba(239, 68, 68, 0.12)',
+  errorBorder:   'rgba(239, 68, 68, 0.28)',
+  errorText:     '#FCA5A5',
+  previewBg:     'rgba(1,4,2,0.97)',
 };
 
 const PAGE_SIZE = 5;
@@ -708,7 +708,7 @@ export default function AdminEvidenciasPage() {
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 3px; }
-        select option { background: #25143F; color: #F7F2FF; }
+        select option { background: #070D0A; color: #F2FFF6; }
       `}</style>
     </div>
   );
