@@ -166,3 +166,26 @@ model AprobacionTally {
   @@index([formId])
   @@index([estado])
 }
+
+model EvidenciaTallyReemplazo {
+  id                  String   @id @default(cuid())
+  tallySubmissionId   String
+  formId              String
+  questionId          String?
+  tallyFileUrl        String   @db.Text
+  tallyFileName       String?
+  replacementUrl      String   @db.Text
+  replacementPublicId String?
+  replacementName     String?
+  replacementMime     String?
+  replacementSize     Int?
+  storageProvider     String   @default("cloudinary")
+  motivo              String
+  replacedBy          String?
+  replacedAt          DateTime @default(now())
+  active              Boolean  @default(true)
+
+  @@index([tallySubmissionId])
+  @@index([formId])
+  @@index([tallyFileUrl])
+}

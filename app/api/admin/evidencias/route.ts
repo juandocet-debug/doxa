@@ -122,12 +122,23 @@ export async function GET(req: Request) {
       }
     }
 
-    // 3. Batch query database for all submission approvals in 1 query
+        // 3. Batch query database for all submission approvals in 1 query
     const aprobaciones = await prisma.aprobacionTally.findMany({
       where: { tallySubmissionId: { in: allSubIds } }
     });
     const aprobMap = new Map<string, typeof aprobaciones[0]>(
       aprobaciones.map((a) => [a.tallySubmissionId, a])
+    );
+
+    // Query active Cloudinary replacements
+    const replacements = await prisma.evidenciaTallyReemplazo.findMany({
+      where: {
+        tallySubmissionId: { in: allSubIds },
+        active: true,
+      },
+    });
+    const replacementMap = new Map<string, typeof replacements[0]>(
+      replacements.map((r) => [r.tallyFileUrl, r])
     );
 
     const allSubmissions: SubmisionEvidencia[] = [];
@@ -159,10 +170,30 @@ export async function GET(req: Request) {
 
         if (filterGrupo && grupo !== filterGrupo) continue;
 
-        const fotos = fotoQs.map((q) => ({
-          label: q.title ?? q.id,
-          archivos: extractFiles(getResp(q.id)),
-        }));
+        const fotos = fotoQs.map((q) => {
+          const files = extractFiles(getResp(q.id));
+          const archivos = files.map((file) => {
+            const repl = replacementMap.get(file.url);
+            if (repl) {
+              return {
+                id: file.id,
+                name: repl.replacementName || file.name,
+                url: repl.replacementUrl,
+                mimeType: repl.replacementMime || file.mimeType,
+                size: repl.replacementSize || file.size,
+                isReplaced: true,
+                originalUrl: file.url,
+                originalName: file.name,
+                motivoReemplazo: repl.motivo,
+              };
+            }
+            return file;
+          });
+          return {
+            label: q.title ?? q.id,
+            archivos,
+          };
+        });
 
         const aprobacion = aprobMap.get(sub.id);
 

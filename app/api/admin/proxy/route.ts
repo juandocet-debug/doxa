@@ -13,8 +13,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Falta el parámetro url' }, { status: 400 });
     }
 
-    // Only allow Tally storage URLs to prevent open redirect abuse
-    const allowedHosts = ['storage.tally.so', 'tally.so', 'cdn.tally.so'];
+    // Only allow Tally storage and Cloudinary URLs to prevent open redirect abuse
+    const allowedHosts = ['storage.tally.so', 'tally.so', 'cdn.tally.so', 'res.cloudinary.com'];
     try {
       const parsed = new URL(url);
       if (!allowedHosts.some((h) => parsed.hostname.endsWith(h))) {

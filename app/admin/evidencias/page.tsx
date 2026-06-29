@@ -9,6 +9,10 @@ interface TallyFile {
   url: string;
   mimeType: string;
   size: number;
+  isReplaced?: boolean;
+  originalUrl?: string;
+  originalName?: string;
+  motivoReemplazo?: string;
 }
 
 interface SubmisionEvidencia {
@@ -82,6 +86,63 @@ export default function AdminEvidenciasPage() {
   const [notasText, setNotasText]     = useState('');
   const [uploadingDrive, setUploadingDrive] = useState<string | null>(null);
   const [driveResultModal, setDriveResultModal] = useState<{ success: boolean; message: string } | null>(null);
+
+  // States for evidence replacement
+  const [reemplazarModal, setReemplazarModal] = useState<{
+    submissionId: string;
+    formId: string;
+    questionId: string | null;
+    tallyFileUrl: string;
+    tallyFileName: string | null;
+    currentName: string;
+    currentUrl: string;
+  } | null>(null);
+  const [reemplazarMotivo, setReemplazarMotivo] = useState('');
+  const [reemplazarFile, setReemplazarFile] = useState<File | null>(null);
+  const [reemplazarError, setReemplazarError] = useState('');
+  const [reemplazarSaving, setReemplazarSaving] = useState(false);
+
+  async function handleReemplazarSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reemplazarModal || !reemplazarFile || !reemplazarMotivo.trim()) {
+      setReemplazarError('Por favor complete todos los campos requeridos');
+      return;
+    }
+    setReemplazarSaving(true);
+    setReemplazarError('');
+
+    try {
+      const fd = new FormData();
+      fd.append('tallySubmissionId', reemplazarModal.submissionId);
+      fd.append('formId', reemplazarModal.formId);
+      if (reemplazarModal.questionId) {
+        fd.append('questionId', reemplazarModal.questionId);
+      }
+      fd.append('tallyFileUrl', reemplazarModal.tallyFileUrl);
+      if (reemplazarModal.tallyFileName) {
+        fd.append('tallyFileName', reemplazarModal.tallyFileName);
+      }
+      fd.append('motivo', reemplazarMotivo.trim());
+      fd.append('file', reemplazarFile);
+
+      const res = await fetch('/api/admin/evidencias/reemplazar', {
+        method: 'POST',
+        body: fd,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al subir el reemplazo');
+      }
+
+      setReemplazarModal(null);
+      load();
+    } catch (err: unknown) {
+      setReemplazarError(err instanceof Error ? err.message : 'Error de conexión');
+    } finally {
+      setReemplazarSaving(false);
+    }
+  }
 
   // Verificar sesión y cargar datos en una sola pasada
   useEffect(() => {
@@ -585,6 +646,51 @@ export default function AdminEvidenciasPage() {
                             style={{ fontSize: '0.58rem', color: C.textMuted, textDecoration: 'none', fontWeight: 600 }}>
                             ↓ Descargar
                           </a>
+                          {archivo.isReplaced && (
+                            <span
+                              title={`Original: ${archivo.originalName}\nMotivo: ${archivo.motivoReemplazo}`}
+                              style={{
+                                display: 'inline-block',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                color: C.lime,
+                                fontSize: '0.55rem',
+                                fontWeight: 800,
+                                textAlign: 'center',
+                                marginTop: 2
+                              }}
+                            >
+                              ✓ Reemplazado
+                            </span>
+                          )}
+                          {!isReadOnly && (
+                            <button
+                              onClick={() => {
+                                setReemplazarModal({
+                                  submissionId: sub.submissionId,
+                                  formId: sub.formId,
+                                  questionId: null,
+                                  tallyFileUrl: archivo.originalUrl || archivo.url,
+                                  tallyFileName: archivo.originalName || archivo.name,
+                                  currentName: archivo.name,
+                                  currentUrl: archivo.url,
+                                });
+                                setReemplazarMotivo('');
+                                setReemplazarFile(null);
+                                setReemplazarError('');
+                              }}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '2px 8px', borderRadius: 4, border: 'none',
+                                background: 'rgba(255, 193, 7, 0.15)', color: '#FFC107',
+                                fontSize: '0.58rem', fontWeight: 700, cursor: 'pointer',
+                                marginTop: 4, transition: 'all 0.2s'
+                              }}
+                            >
+                              🔄 Reemplazar
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -697,6 +803,58 @@ export default function AdminEvidenciasPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal Reemplazar Evidencia */}
+      {reemplazarModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <form onSubmit={handleReemplazarSubmit} style={{ background: C.surface, border: `1px solid ${C.surfaceBorder}`, borderRadius: 12, padding: 24, width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 70px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: 0, color: C.textPrimary, fontWeight: 800, fontSize: '1.1rem' }}>🔄 Reemplazar Evidencia</h3>
+            
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: '0.74rem', color: C.textMuted }}>Archivo Actual:</p>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: C.lime, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {reemplazarModal.currentName}
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.74rem', color: C.textMuted }}>Seleccione el nuevo archivo (Imagen o PDF):</label>
+              <input 
+                type="file" 
+                required
+                accept="image/*,application/pdf"
+                onChange={e => setReemplazarFile(e.target.files?.[0] || null)}
+                style={{ width: '100%', color: C.textPrimary, fontSize: '0.82rem' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.74rem', color: C.textMuted }}>Motivo del reemplazo (Obligatorio):</label>
+              <textarea 
+                required
+                value={reemplazarMotivo} 
+                onChange={e => setReemplazarMotivo(e.target.value)} 
+                rows={3}
+                placeholder="Escriba la razón por la que se reemplaza este archivo..."
+                style={{ width: '100%', background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '10px 12px', fontSize: '0.82rem', resize: 'none', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} 
+              />
+            </div>
+
+            {reemplazarError && (
+              <div style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, borderRadius: 8, padding: '10px 12px', color: C.errorText, fontSize: '0.78rem' }}>
+                {reemplazarError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button type="button" onClick={() => setReemplazarModal(null)} disabled={reemplazarSaving} style={sBtn()}>Cancelar</button>
+              <button type="submit" disabled={reemplazarSaving} style={{ ...primaryBtn, opacity: reemplazarSaving ? 0.5 : 1, padding: '0 20px', minHeight: 36 }}>
+                {reemplazarSaving ? 'Subiendo...' : 'Confirmar Reemplazo'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

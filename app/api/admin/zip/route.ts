@@ -61,16 +61,30 @@ export async function GET(req: Request) {
 
     if (!sub) return NextResponse.json({ error: 'Envío no encontrado' }, { status: 404 });
 
-    const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
+        const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
 
-
+    const replacements = await prisma.evidenciaTallyReemplazo.findMany({
+      where: {
+        tallySubmissionId: submissionId,
+        active: true,
+      },
+    });
+    const replacementMap = new Map<string, typeof replacements[0]>(
+      replacements.map(r => [r.tallyFileUrl, r])
+    );
 
     const downloadQueue: { qTitle: string; file: { url: string; name: string; mimeType: string } }[] = [];
     for (const q of fotoQs) {
       const resp = sub.responses.find(r => r.questionId === q.id);
       const files = Array.isArray(resp?.answer) ? resp.answer as { url: string; name: string; mimeType: string }[] : [];
       for (const file of files) {
-        downloadQueue.push({ qTitle: q.title, file });
+        const repl = replacementMap.get(file.url);
+        const resolvedFile = repl ? {
+          url: repl.replacementUrl,
+          name: repl.replacementName || file.name,
+          mimeType: repl.replacementMime || file.mimeType
+        } : file;
+        downloadQueue.push({ qTitle: q.title, file: resolvedFile });
       }
     }
 
