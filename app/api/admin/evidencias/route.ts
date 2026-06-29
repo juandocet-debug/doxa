@@ -130,6 +130,15 @@ export async function GET(req: Request) {
       aprobaciones.map((a) => [a.tallySubmissionId, a])
     );
 
+    const cleanUrl = (u: string) => {
+      try {
+        const parsed = new URL(u);
+        return parsed.origin + parsed.pathname;
+      } catch {
+        return u;
+      }
+    };
+
     // Query active Cloudinary replacements
     const replacements = await prisma.evidenciaTallyReemplazo.findMany({
       where: {
@@ -137,9 +146,21 @@ export async function GET(req: Request) {
         active: true,
       },
     });
-    const replacementMap = new Map<string, typeof replacements[0]>(
-      replacements.map((r) => [r.tallyFileUrl, r])
-    );
+    const replacementMap = new Map<string, typeof replacements[0]>();
+    for (const r of replacements) {
+      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
+    }
+
+    // Query Tally archive snapshots
+    const archives = await prisma.tallyArchivoSnapshot.findMany({
+      where: {
+        tallySubmissionId: { in: allSubIds }
+      }
+    });
+    const archiveMap = new Map<string, typeof archives[0]>();
+    for (const a of archives) {
+      archiveMap.set(cleanUrl(a.tallyFileUrl), a);
+    }
 
     const allSubmissions: SubmisionEvidencia[] = [];
 
@@ -173,7 +194,8 @@ export async function GET(req: Request) {
         const fotos = fotoQs.map((q) => {
           const files = extractFiles(getResp(q.id));
           const archivos = files.map((file) => {
-            const repl = replacementMap.get(file.url);
+            const fileClean = cleanUrl(file.url);
+            const repl = replacementMap.get(fileClean);
             if (repl) {
               return {
                 id: file.id,
@@ -185,9 +207,35 @@ export async function GET(req: Request) {
                 originalUrl: file.url,
                 originalName: file.name,
                 motivoReemplazo: repl.motivo,
+                syncStatus: 'synced',
               };
             }
-            return file;
+
+            const arch = archiveMap.get(fileClean);
+            if (arch && arch.syncStatus === 'synced' && arch.cloudinaryUrl) {
+              return {
+                id: file.id,
+                name: arch.tallyFileName || file.name,
+                url: arch.cloudinaryUrl,
+                mimeType: arch.cloudinaryMime || file.mimeType,
+                size: arch.cloudinarySize || file.size,
+                isSynced: true,
+                syncStatus: 'synced',
+                originalUrl: file.url,
+              };
+            }
+
+            return {
+              id: file.id,
+              name: file.name,
+              url: file.url,
+              mimeType: file.mimeType,
+              size: file.size,
+              isSynced: arch ? arch.syncStatus === 'synced' : false,
+              syncStatus: arch ? arch.syncStatus : 'pending',
+              syncError: arch ? arch.syncError : null,
+              originalUrl: file.url,
+            };
           });
           return {
             label: q.title ?? q.id,

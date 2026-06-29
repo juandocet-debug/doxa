@@ -95,7 +95,8 @@ export async function POST(req: Request) {
 
     // 4. Subir a Cloudinary
     const buffer = Buffer.from(await file.arrayBuffer());
-    const uploadResult = await uploadToCloudinary(buffer, file.name, file.type);
+    const replacementFolder = `doxa/evidencias/reemplazos/${formId}/${tallySubmissionId}`;
+    const uploadResult = await uploadToCloudinary(buffer, file.name, file.type, replacementFolder);
 
     // 5. Transacción de base de datos
     const result = await prisma.$transaction(async (tx) => {

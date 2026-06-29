@@ -13,6 +13,9 @@ interface TallyFile {
   originalUrl?: string;
   originalName?: string;
   motivoReemplazo?: string;
+  isSynced?: boolean;
+  syncStatus?: string;
+  syncError?: string | null;
 }
 
 interface SubmisionEvidencia {
@@ -86,6 +89,7 @@ export default function AdminEvidenciasPage() {
   const [notasText, setNotasText]     = useState('');
   const [uploadingDrive, setUploadingDrive] = useState<string | null>(null);
   const [driveResultModal, setDriveResultModal] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncingBackup, setSyncingBackup] = useState<string | null>(null);
 
   // States for evidence replacement
   const [reemplazarModal, setReemplazarModal] = useState<{
@@ -146,6 +150,25 @@ export default function AdminEvidenciasPage() {
       setReemplazarError(err instanceof Error ? err.message : 'Error de conexión');
     } finally {
       setReemplazarSaving(false);
+    }
+  }
+
+  async function handleSyncBackup(sub: { formId: string; submissionId: string }) {
+    setSyncingBackup(sub.submissionId);
+    try {
+      const res = await fetch('/api/admin/evidencias/sync-backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formId: sub.formId, submissionId: sub.submissionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al respaldar evidencias');
+      load();
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : 'Error al respaldar evidencias';
+      alert(errorMsg);
+    } finally {
+      setSyncingBackup(null);
     }
   }
 
@@ -612,6 +635,13 @@ export default function AdminEvidenciasPage() {
                     >
                       {uploadingDrive === sub.submissionId ? '📤 Subiendo...' : '☁️ Drive'}
                     </button>
+                    <button
+                      onClick={() => handleSyncBackup(sub)}
+                      disabled={syncingBackup === sub.submissionId}
+                      style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 12px', minHeight:32, borderRadius:8, border:'none', background: '#3B82F6', color:'#ffffff', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1, boxShadow: '0 2px 8px rgba(59,130,246,0.3)' }}
+                    >
+                      {syncingBackup === sub.submissionId ? '🔄 Respaldando...' : '🔄 Respaldar'}
+                    </button>
                     <button onClick={() => setFilterClase('')} style={{ ...sBtn(), fontSize: '0.72rem' }}>← Volver</button>
                   </div>
                 </div>
@@ -690,6 +720,24 @@ export default function AdminEvidenciasPage() {
                             style={{ fontSize: '0.58rem', color: C.textMuted, textDecoration: 'none', fontWeight: 600 }}>
                             ↓ Descargar
                           </a>
+
+                          {/* Backup Status Badge */}
+                          <div style={{ marginTop: 2, display: 'flex', gap: 4, alignItems: 'center' }}>
+                            {archivo.syncStatus === 'synced' ? (
+                              <span style={{ fontSize: '0.53rem', color: '#10B981', fontWeight: 700 }}>
+                                ☁️ Respaldado
+                              </span>
+                            ) : archivo.syncStatus === 'failed' ? (
+                              <span title={archivo.syncError || 'Error al respaldar'} style={{ fontSize: '0.53rem', color: C.errorText, fontWeight: 700 }}>
+                                ⚠️ Falla backup
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.53rem', color: '#FDE68A', fontWeight: 700 }}>
+                                ⏳ Backup pend.
+                              </span>
+                            )}
+                          </div>
+
                           {archivo.isReplaced && (
                             <span
                               title={`Original: ${archivo.originalName}\nMotivo: ${archivo.motivoReemplazo}`}
@@ -702,7 +750,7 @@ export default function AdminEvidenciasPage() {
                                 fontSize: '0.55rem',
                                 fontWeight: 800,
                                 textAlign: 'center',
-                                marginTop: 2
+                                marginTop: 4
                               }}
                             >
                               ✓ Reemplazado

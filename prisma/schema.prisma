@@ -189,3 +189,57 @@ model EvidenciaTallyReemplazo {
   @@index([formId])
   @@index([tallyFileUrl])
 }
+
+model TallySubmissionSnapshot {
+  id                String   @id @default(cuid())
+  tallySubmissionId String   @unique
+  formId            String
+  componenteId      String?
+  componenteNombre  String?
+  grupo             String?
+  clase             String?
+  fechaEnvio        DateTime?
+  rawJson           Json?
+  syncedAt          DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  archivos          TallyArchivoSnapshot[]
+
+  @@index([formId])
+  @@index([componenteId])
+  @@index([grupo])
+  @@index([clase])
+  @@index([fechaEnvio])
+}
+
+model TallyArchivoSnapshot {
+  id                String   @id @default(cuid())
+  snapshotId        String
+  tallySubmissionId String
+  formId            String
+  questionId        String?
+  questionLabel     String?
+  tallyFileId       String?
+  tallyFileName     String?
+  tallyFileUrl      String   @unique @db.Text
+  tallyMime         String?
+  tallySize         Int?
+
+  cloudinaryUrl      String?  @db.Text
+  cloudinaryPublicId String?
+  cloudinaryMime     String?
+  cloudinarySize     Int?
+
+  syncStatus        String   @default("pending") // pending | synced | failed
+  syncError         String?  @db.Text
+  syncedAt          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  snapshot          TallySubmissionSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([tallySubmissionId])
+  @@index([formId])
+  @@index([questionId])
+  @@index([syncStatus])
+}

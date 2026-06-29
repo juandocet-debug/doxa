@@ -8,12 +8,13 @@ export interface CloudinaryUploadResult {
 export async function uploadToCloudinary(
   fileBuffer: Buffer,
   fileName: string,
-  mimeType: string
+  mimeType: string,
+  customFolder?: string
 ): Promise<CloudinaryUploadResult> {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
-  const folder = process.env.CLOUDINARY_FOLDER || 'doxa/evidencias';
+  const folder = customFolder || process.env.CLOUDINARY_FOLDER || 'doxa/evidencias';
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new Error('Configuración de Cloudinary incompleta en las variables de entorno.');

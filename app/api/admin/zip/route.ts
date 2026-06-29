@@ -63,27 +63,56 @@ export async function GET(req: Request) {
 
         const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
 
+    const cleanUrl = (u: string) => {
+      try {
+        const parsed = new URL(u);
+        return parsed.origin + parsed.pathname;
+      } catch {
+        return u;
+      }
+    };
+
     const replacements = await prisma.evidenciaTallyReemplazo.findMany({
       where: {
         tallySubmissionId: submissionId,
         active: true,
       },
     });
-    const replacementMap = new Map<string, typeof replacements[0]>(
-      replacements.map(r => [r.tallyFileUrl, r])
-    );
+    const replacementMap = new Map<string, typeof replacements[0]>();
+    for (const r of replacements) {
+      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
+    }
+
+    const archives = await prisma.tallyArchivoSnapshot.findMany({
+      where: {
+        tallySubmissionId: submissionId,
+        syncStatus: 'synced'
+      }
+    });
+    const archiveMap = new Map<string, typeof archives[0]>();
+    for (const a of archives) {
+      archiveMap.set(cleanUrl(a.tallyFileUrl), a);
+    }
 
     const downloadQueue: { qTitle: string; file: { url: string; name: string; mimeType: string } }[] = [];
     for (const q of fotoQs) {
       const resp = sub.responses.find(r => r.questionId === q.id);
       const files = Array.isArray(resp?.answer) ? resp.answer as { url: string; name: string; mimeType: string }[] : [];
       for (const file of files) {
-        const repl = replacementMap.get(file.url);
+        const fileClean = cleanUrl(file.url);
+        const repl = replacementMap.get(fileClean);
+        const arch = archiveMap.get(fileClean);
+
         const resolvedFile = repl ? {
           url: repl.replacementUrl,
           name: repl.replacementName || file.name,
           mimeType: repl.replacementMime || file.mimeType
-        } : file;
+        } : (arch && arch.cloudinaryUrl ? {
+          url: arch.cloudinaryUrl,
+          name: arch.tallyFileName || file.name,
+          mimeType: arch.cloudinaryMime || file.mimeType
+        } : file);
+
         downloadQueue.push({ qTitle: q.title, file: resolvedFile });
       }
     }
