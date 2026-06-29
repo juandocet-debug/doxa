@@ -3,6 +3,7 @@ import { getSubmissions } from '@/lib/tally-api';
 import { prisma } from '@/lib/db';
 import { requireSession, AuthError } from '@/lib/session-helper';
 import { SUPER_ADMIN_ID } from '@/lib/auth';
+import { syncSubmissionSnapshot } from '@/lib/sync-service';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -44,16 +45,25 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       replacementMap.set(cleanUrl(r.tallyFileUrl), r);
     }
 
-    // Query synced snapshots for this form
+    // Query snapshots for this form
     const archives = await prisma.tallyArchivoSnapshot.findMany({
       where: {
-        formId: id,
-        syncStatus: 'synced'
+        formId: id
       }
     });
     const archiveMap = new Map<string, typeof archives[0]>();
     for (const a of archives) {
-      archiveMap.set(cleanUrl(a.tallyFileUrl), a);
+      if (a.syncStatus === 'synced') {
+        archiveMap.set(cleanUrl(a.tallyFileUrl), a);
+      }
+    }
+
+    const snapshots = await prisma.tallySubmissionSnapshot.findMany({
+      where: { formId: id }
+    });
+    const snapshotMap = new Map<string, typeof snapshots[0]>();
+    for (const s of snapshots) {
+      snapshotMap.set(s.tallySubmissionId, s);
     }
 
     // Apply replacements and snapshot URLs to the responses
@@ -98,6 +108,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           }
           return resp;
         });
+        // Trigger automatic background sync/backup if snapshot is missing or has unsynced files
+        const existingSnapshot = snapshotMap.get(sub.id);
+        const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
+        const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
+
+        if (!existingSnapshot || hasUnsynced) {
+          syncSubmissionSnapshot(id, sub.id).catch((err) => {
+            console.error(`Automatic background backup failed for ${sub.id}:`, err);
+          });
+        }
+
         return { ...sub, responses };
       });
     }
