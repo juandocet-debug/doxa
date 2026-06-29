@@ -45,6 +45,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'El envío no existe en Tally o no coincide con los parámetros' }, { status: 400 });
     }
 
+    const cleanUrl = (u: string) => {
+      try {
+        const parsed = new URL(u);
+        return parsed.origin + parsed.pathname;
+      } catch {
+        return u;
+      }
+    };
+
+    const targetClean = cleanUrl(tallyFileUrl);
+
     // Extract all file URLs in this submission
     const fileUrls: string[] = [];
     for (const resp of submission.responses ?? []) {
@@ -57,7 +68,8 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!fileUrls.includes(tallyFileUrl)) {
+    const hasMatch = fileUrls.some(u => cleanUrl(u) === targetClean);
+    if (!hasMatch) {
       return NextResponse.json({ error: 'La URL del archivo no pertenece a este envío en Tally' }, { status: 400 });
     }
 

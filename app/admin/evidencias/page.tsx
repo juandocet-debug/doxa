@@ -101,6 +101,7 @@ export default function AdminEvidenciasPage() {
   const [reemplazarFile, setReemplazarFile] = useState<File | null>(null);
   const [reemplazarError, setReemplazarError] = useState('');
   const [reemplazarSaving, setReemplazarSaving] = useState(false);
+  const [reemplazarFilePreview, setReemplazarFilePreview] = useState<string | null>(null);
 
   async function handleReemplazarSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,6 +136,10 @@ export default function AdminEvidenciasPage() {
         throw new Error(data.error || 'Error al subir el reemplazo');
       }
 
+      if (reemplazarFilePreview) {
+        URL.revokeObjectURL(reemplazarFilePreview);
+      }
+      setReemplazarFilePreview(null);
       setReemplazarModal(null);
       load();
     } catch (err: unknown) {
@@ -619,25 +624,64 @@ export default function AdminEvidenciasPage() {
                       return (
                         <div key={ai} className="thumb-wrap"
                           style={{ flex: '0 0 150px', width: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                          {archivo.mimeType?.startsWith('image/') ? (
+                          
+                          {/* Image/File Container with relative positioning */}
+                          <div style={{ position: 'relative', width: 150, height: 150, borderRadius: 8, overflow: 'hidden', border: isSelected ? `2px solid ${C.lime}` : `1px solid ${C.surfaceBorder}`, boxShadow: isSelected ? `0 0 0 3px rgba(200,255,122,0.22)` : 'none', transition: 'all .15s', flexShrink: 0 }}>
+                            {archivo.mimeType?.startsWith('image/') ? (
+                              <button
+                                onClick={() => openPreview(sub, archivo, archivo.label)}
+                                title="Ver en detalle"
+                                style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block' }}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                {isSelected && (
+                                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(200,255,122,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: '1.6rem' }}>🔍</span>
+                                  </div>
+                                )}
+                              </button>
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', background: C.input, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '1.8rem' }}>📄</span>
+                              </div>
+                            )}
+
+                            {/* Floating Replace Button */}
                             <button
-                              onClick={() => openPreview(sub, archivo, archivo.label)}
-                              title="Ver en detalle"
-                              style={{ width: 150, height: 150, borderRadius: 8, overflow: 'hidden', border: isSelected ? `2px solid ${C.lime}` : `1px solid ${C.surfaceBorder}`, cursor: 'pointer', padding: 0, background: 'none', position: 'relative', boxShadow: isSelected ? `0 0 0 3px rgba(200,255,122,0.22)` : 'none', transition: 'all .15s', flexShrink: 0 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReemplazarModal({
+                                  submissionId: sub.submissionId,
+                                  formId: sub.formId,
+                                  questionId: null,
+                                  tallyFileUrl: archivo.originalUrl || archivo.url,
+                                  tallyFileName: archivo.originalName || archivo.name,
+                                  currentName: archivo.name,
+                                  currentUrl: archivo.url,
+                                });
+                                setReemplazarMotivo('');
+                                setReemplazarFile(null);
+                                setReemplazarError('');
+                                setReemplazarFilePreview(null);
+                              }}
+                              title="Reemplazar esta evidencia"
+                              style={{
+                                position: 'absolute', top: 6, right: 6,
+                                width: 28, height: 28, borderRadius: '50%',
+                                background: 'rgba(4,10,6,0.85)', border: `1px solid ${C.lime}`,
+                                color: C.lime, fontSize: '0.85rem', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.5)', transition: 'all 0.2s',
+                                zIndex: 5
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = C.lime; e.currentTarget.style.color = '#130620'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(4,10,6,0.85)'; e.currentTarget.style.color = C.lime; }}
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                              {isSelected && (
-                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(200,255,122,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <span style={{ fontSize: '1.6rem' }}>🔍</span>
-                                </div>
-                              )}
+                              🔄
                             </button>
-                          ) : (
-                            <div style={{ width: 150, height: 150, borderRadius: 8, border: `1px solid ${C.surfaceBorder}`, background: C.input, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <span style={{ fontSize: '1.8rem' }}>📄</span>
-                            </div>
-                          )}
+                          </div>
+
                           <span style={{ fontSize: '0.58rem', color: C.lime, fontWeight: 700, textAlign: 'center', lineHeight: 1.2, width: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                             {archivo.label.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}
                           </span>
@@ -664,31 +708,6 @@ export default function AdminEvidenciasPage() {
                               ✓ Reemplazado
                             </span>
                           )}
-                          <button
-                            onClick={() => {
-                              setReemplazarModal({
-                                submissionId: sub.submissionId,
-                                formId: sub.formId,
-                                questionId: null,
-                                tallyFileUrl: archivo.originalUrl || archivo.url,
-                                tallyFileName: archivo.originalName || archivo.name,
-                                currentName: archivo.name,
-                                currentUrl: archivo.url,
-                              });
-                              setReemplazarMotivo('');
-                              setReemplazarFile(null);
-                              setReemplazarError('');
-                            }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              padding: '2px 8px', borderRadius: 4, border: 'none',
-                              background: 'rgba(255, 193, 7, 0.15)', color: '#FFC107',
-                              fontSize: '0.58rem', fontWeight: 700, cursor: 'pointer',
-                              marginTop: 4, transition: 'all 0.2s'
-                            }}
-                          >
-                            🔄 Reemplazar
-                          </button>
                         </div>
                       );
                     })}
@@ -817,19 +836,77 @@ export default function AdminEvidenciasPage() {
               </p>
             </div>
 
-            <div>
-              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.74rem', color: C.textMuted }}>Seleccione el nuevo archivo (Imagen o PDF):</label>
+            {/* Drag & Drop Zone */}
+            <div 
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => {
+                e.preventDefault();
+                const f = e.dataTransfer.files?.[0];
+                if (f) {
+                  setReemplazarFile(f);
+                  if (f.type.startsWith('image/')) {
+                    setReemplazarFilePreview(URL.createObjectURL(f));
+                  } else {
+                    setReemplazarFilePreview(null);
+                  }
+                }
+              }}
+              style={{ 
+                border: `2px dashed ${C.surfaceBorder}`, 
+                borderRadius: 10, 
+                padding: '30px 20px', 
+                textAlign: 'center', 
+                background: 'rgba(255,255,255,0.02)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 160
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.lime; e.currentTarget.style.background = 'rgba(200,255,122,0.03)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.surfaceBorder; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+              onClick={() => document.getElementById('file-input')?.click()}
+            >
               <input 
+                id="file-input"
                 type="file" 
                 required
                 accept="image/*,application/pdf"
-                onChange={e => setReemplazarFile(e.target.files?.[0] || null)}
-                style={{ width: '100%', color: C.textPrimary, fontSize: '0.82rem' }}
+                onChange={e => {
+                  const f = e.target.files?.[0] || null;
+                  setReemplazarFile(f);
+                  if (f && f.type.startsWith('image/')) {
+                    setReemplazarFilePreview(URL.createObjectURL(f));
+                  } else {
+                    setReemplazarFilePreview(null);
+                  }
+                }}
+                style={{ display: 'none' }}
               />
+              {reemplazarFilePreview ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={reemplazarFilePreview} alt="Vista previa" style={{ maxWidth: '100%', maxHeight: 130, objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} />
+                  <span style={{ fontSize: '0.78rem', color: C.lime, fontWeight: 700 }}>{reemplazarFile?.name}</span>
+                </div>
+              ) : reemplazarFile ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: '3rem' }}>📄</span>
+                  <span style={{ fontSize: '0.78rem', color: C.lime, fontWeight: 700 }}>{reemplazarFile.name} (PDF)</span>
+                </div>
+              ) : (
+                <div>
+                  <span style={{ fontSize: '2.2rem', display: 'block', marginBottom: 10 }}>📤</span>
+                  <span style={{ fontSize: '0.85rem', color: C.textPrimary, fontWeight: 700, display: 'block' }}>Arrastra el archivo aquí o haz clic para examinar</span>
+                  <span style={{ fontSize: '0.7rem', color: C.textMuted, display: 'block', marginTop: 6 }}>Formatos: JPG, PNG, WEBP, GIF o PDF (Hasta 15MB)</span>
+                </div>
+              )}
             </div>
 
             <div>
-              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.74rem', color: C.textMuted }}>Motivo del reemplazo (Obligatorio):</label>
+              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.76rem', color: C.textMuted, fontWeight: 600 }}>Motivo del reemplazo (Obligatorio):</label>
               <textarea 
                 required
                 value={reemplazarMotivo} 
@@ -847,7 +924,18 @@ export default function AdminEvidenciasPage() {
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-              <button type="button" onClick={() => setReemplazarModal(null)} disabled={reemplazarSaving} style={sBtn()}>Cancelar</button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (reemplazarFilePreview) URL.revokeObjectURL(reemplazarFilePreview);
+                  setReemplazarFilePreview(null);
+                  setReemplazarModal(null);
+                }} 
+                disabled={reemplazarSaving} 
+                style={sBtn()}
+              >
+                Cancelar
+              </button>
               <button type="submit" disabled={reemplazarSaving} style={{ ...primaryBtn, opacity: reemplazarSaving ? 0.5 : 1, padding: '0 20px', minHeight: 36 }}>
                 {reemplazarSaving ? 'Subiendo...' : 'Confirmar Reemplazo'}
               </button>
