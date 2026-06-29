@@ -28,15 +28,35 @@ export interface SubmisionEvidencia {
   notas: string | null;
 }
 
+interface CacheEntry {
+  data: {
+    questions: { id: string; title: string; type: string }[];
+    submissions: {
+      id: string;
+      submittedAt: string;
+      createdAt: string;
+      responses: { questionId: string; answer: unknown }[];
+    }[];
+  };
+  timestamp: number;
+}
+
+const tallyCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 20 * 1000; // 20 seconds short-term cache
+
 async function fetchSubmissions(formId: string) {
+  const cached = tallyCache.get(formId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   const res = await fetch(`${API}/forms/${formId}/submissions?limit=500`, {
     headers: { Authorization: `Bearer ${KEY}` },
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`Tally API ${res.status} for form ${formId}`);
   const data = await res.json();
-  // Tally returns questions/submissions at top level, not nested under data
-  return {
+  const parsed = {
     questions: (data.questions ?? []) as { id: string; title: string; type: string }[],
     submissions: (data.submissions ?? []) as {
       id: string;
@@ -45,6 +65,9 @@ async function fetchSubmissions(formId: string) {
       responses: { questionId: string; answer: unknown }[];
     }[],
   };
+
+  tallyCache.set(formId, { data: parsed, timestamp: Date.now() });
+  return parsed;
 }
 
 function extractAnswer(answer: unknown): string {
@@ -57,7 +80,6 @@ function extractFiles(answer: unknown): TallyFile[] {
   if (!Array.isArray(answer)) return [];
   return answer.filter((f) => f && typeof f === 'object' && 'url' in f) as TallyFile[];
 }
-
 
 export async function GET(req: Request) {
   try {
@@ -79,10 +101,42 @@ export async function GET(req: Request) {
       ? COMPONENTES.filter((c) => c.id === targetComponente)
       : COMPONENTES;
 
+    // 1. Fetch Tally submissions in parallel
+    const fetchedResults = await Promise.all(
+      componentes.map(async (comp) => {
+        try {
+          const res = await fetchSubmissions(comp.formId);
+          return { comp, data: res, error: null };
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : 'Error';
+          return { comp, data: null, error: msg };
+        }
+      })
+    );
+
+    // 2. Gather all submission IDs
+    const allSubIds: string[] = [];
+    for (const result of fetchedResults) {
+      if (result.data) {
+        allSubIds.push(...result.data.submissions.map((s) => s.id));
+      }
+    }
+
+    // 3. Batch query database for all submission approvals in 1 query
+    const aprobaciones = await prisma.aprobacionTally.findMany({
+      where: { tallySubmissionId: { in: allSubIds } }
+    });
+    const aprobMap = new Map<string, typeof aprobaciones[0]>(
+      aprobaciones.map((a) => [a.tallySubmissionId, a])
+    );
+
     const allSubmissions: SubmisionEvidencia[] = [];
 
-    for (const comp of componentes) {
-      const { questions, submissions } = await fetchSubmissions(comp.formId);
+    // 4. Map results and build responses
+    for (const result of fetchedResults) {
+      if (result.error || !result.data) continue;
+      const { comp } = result;
+      const { questions, submissions } = result.data;
 
       const grupoQ = questions.find(
         (q) => q.title?.toLowerCase().includes('grupo') || q.title?.toLowerCase().includes('selecciona')
@@ -90,7 +144,6 @@ export async function GET(req: Request) {
       const claseQ = questions.find(
         (q) => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número')
       );
-      // Use type FILE_UPLOAD to reliably detect all photo/file questions
       const fotoQs = questions.filter((q) => q.type === 'FILE_UPLOAD');
 
       for (const sub of submissions) {
@@ -111,9 +164,7 @@ export async function GET(req: Request) {
           archivos: extractFiles(getResp(q.id)),
         }));
 
-        const aprobacion = await prisma.aprobacionTally.findUnique({
-          where: { tallySubmissionId: sub.id },
-        });
+        const aprobacion = aprobMap.get(sub.id);
 
         allSubmissions.push({
           submissionId: sub.id,

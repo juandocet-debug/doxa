@@ -44,26 +44,48 @@ export interface StatsResponse {
   topPesadas: SubStat[];
 }
 
+interface StatsCache {
+  data: StatsResponse;
+  timestamp: number;
+}
+
+let statsCache: StatsCache | null = null;
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds stats cache TTL
+
 export async function GET() {
   try {
     await requireSuperAdmin();
 
+    // Check memory cache
+    if (statsCache && Date.now() - statsCache.timestamp < CACHE_TTL_MS) {
+      return NextResponse.json(statsCache.data);
+    }
+
     const aprobaciones = await prisma.aprobacionTally.findMany();
-  const aprobMap = new Map<string, string>(
-    aprobaciones.map((a: { tallySubmissionId: string; estado: string }) => [a.tallySubmissionId, a.estado] as [string, string])
-  );
+    const aprobMap = new Map<string, string>(
+      aprobaciones.map((a) => [a.tallySubmissionId, a.estado])
+    );
 
-  const compStats: CompStat[] = [];
-  let globalBytes = 0, globalFotos = 0, globalSubs = 0;
+    // Fetch all components' Tally data concurrently
+    const fetchedResults = await Promise.allSettled(
+      COMPONENTES.map(async (comp) => {
+        const res = await fetch(`${API}/forms/${comp.formId}/submissions?limit=500`, {
+          headers: { Authorization: `Bearer ${KEY}` },
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error(`Tally API ${res.status} for form ${comp.formId}`);
+        const data = await res.json();
+        return { comp, data };
+      })
+    );
 
-  for (const comp of COMPONENTES) {
-    try {
-      const res  = await fetch(`${API}/forms/${comp.formId}/submissions?limit=500`, {
-        headers: { Authorization: `Bearer ${KEY}` }, cache: 'no-store',
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
+    const compStats: CompStat[] = [];
+    let globalBytes = 0, globalFotos = 0, globalSubs = 0;
 
+    for (const result of fetchedResults) {
+      if (result.status === 'rejected') continue;
+      
+      const { comp, data } = result.value;
       const questions = (data.questions ?? []) as { id: string; title: string; type: string }[];
       const subs      = (data.submissions ?? []) as {
         id: string; submittedAt: string; createdAt: string;
@@ -113,21 +135,25 @@ export async function GET() {
       globalFotos += stat.totalFotos;
       globalSubs  += stat.totalSubmissions;
       compStats.push(stat);
-    } catch { /* skip on error */ }
-  }
+    }
 
-  const topPesadas = compStats
-    .flatMap(c => c.submissions)
-    .sort((a, b) => b.totalBytes - a.totalBytes)
-    .slice(0, 10);
+    const topPesadas = compStats
+      .flatMap(c => c.submissions)
+      .sort((a, b) => b.totalBytes - a.totalBytes)
+      .slice(0, 10);
 
-    return NextResponse.json({
+    const statsResponse: StatsResponse = {
       globalBytes, globalFotos, globalSubs,
       storageLimitBytes: STORAGE_LIMIT_BYTES,
       storagePercent: Math.round((globalBytes / STORAGE_LIMIT_BYTES) * 1000) / 10,
       componentes: compStats,
       topPesadas,
-    } as StatsResponse);
+    };
+
+    // Save cache
+    statsCache = { data: statsResponse, timestamp: Date.now() };
+
+    return NextResponse.json(statsResponse);
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

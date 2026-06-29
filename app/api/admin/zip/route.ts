@@ -63,23 +63,33 @@ export async function GET(req: Request) {
 
     const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
 
-    const zip = new JSZip();
-    let idx   = 1;
 
+
+    const downloadQueue: { qTitle: string; file: { url: string; name: string; mimeType: string } }[] = [];
     for (const q of fotoQs) {
-      const resp  = sub.responses.find(r => r.questionId === q.id);
+      const resp = sub.responses.find(r => r.questionId === q.id);
       const files = Array.isArray(resp?.answer) ? resp.answer as { url: string; name: string; mimeType: string }[] : [];
-
       for (const file of files) {
-        try {
-          const fileRes = await fetch(file.url);
-          if (!fileRes.ok) continue;
-          const buf    = await fileRes.arrayBuffer();
-          const label  = slug(q.title.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || q.title);
-          const fname  = `${String(idx).padStart(2, '0')}_${label}${ext(file.name, file.mimeType) || '.' + file.name.split('.').pop()}`;
-          zip.file(fname, buf);
-          idx++;
-        } catch { /* skip file on error */ }
+        downloadQueue.push({ qTitle: q.title, file });
+      }
+    }
+
+    const downloadedFiles = await Promise.allSettled(
+      downloadQueue.map(async (item, i) => {
+        const fileRes = await fetch(item.file.url, { signal: AbortSignal.timeout(8000) });
+        if (!fileRes.ok) throw new Error(`Download status ${fileRes.status}`);
+        const buf = await fileRes.arrayBuffer();
+        return { item, buf, index: i + 1 };
+      })
+    );
+
+    const zip = new JSZip();
+    for (const result of downloadedFiles) {
+      if (result.status === 'fulfilled') {
+        const { item, buf, index } = result.value;
+        const label  = slug(item.qTitle.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || item.qTitle);
+        const fname  = `${String(index).padStart(2, '0')}_${label}${ext(item.file.name, item.file.mimeType) || '.' + item.file.name.split('.').pop()}`;
+        zip.file(fname, buf);
       }
     }
 

@@ -30,8 +30,9 @@ function createPrisma() {
   return new PrismaClient({ adapter });
 }
 
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = globalThis as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const prisma: any = g._prisma ?? createPrisma();
+export const prisma: PrismaClientType = g._prisma ?? createPrisma();
 if (process.env.NODE_ENV !== 'production') g._prisma = prisma;
