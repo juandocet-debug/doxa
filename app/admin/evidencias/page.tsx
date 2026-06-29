@@ -664,33 +664,31 @@ export default function AdminEvidenciasPage() {
                               ✓ Reemplazado
                             </span>
                           )}
-                          {!isReadOnly && (
-                            <button
-                              onClick={() => {
-                                setReemplazarModal({
-                                  submissionId: sub.submissionId,
-                                  formId: sub.formId,
-                                  questionId: null,
-                                  tallyFileUrl: archivo.originalUrl || archivo.url,
-                                  tallyFileName: archivo.originalName || archivo.name,
-                                  currentName: archivo.name,
-                                  currentUrl: archivo.url,
-                                });
-                                setReemplazarMotivo('');
-                                setReemplazarFile(null);
-                                setReemplazarError('');
-                              }}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                                padding: '2px 8px', borderRadius: 4, border: 'none',
-                                background: 'rgba(255, 193, 7, 0.15)', color: '#FFC107',
-                                fontSize: '0.58rem', fontWeight: 700, cursor: 'pointer',
-                                marginTop: 4, transition: 'all 0.2s'
-                              }}
-                            >
-                              🔄 Reemplazar
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              setReemplazarModal({
+                                submissionId: sub.submissionId,
+                                formId: sub.formId,
+                                questionId: null,
+                                tallyFileUrl: archivo.originalUrl || archivo.url,
+                                tallyFileName: archivo.originalName || archivo.name,
+                                currentName: archivo.name,
+                                currentUrl: archivo.url,
+                              });
+                              setReemplazarMotivo('');
+                              setReemplazarFile(null);
+                              setReemplazarError('');
+                            }}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '2px 8px', borderRadius: 4, border: 'none',
+                              background: 'rgba(255, 193, 7, 0.15)', color: '#FFC107',
+                              fontSize: '0.58rem', fontWeight: 700, cursor: 'pointer',
+                              marginTop: 4, transition: 'all 0.2s'
+                            }}
+                          >
+                            🔄 Reemplazar
+                          </button>
                         </div>
                       );
                     })}

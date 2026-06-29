@@ -10,11 +10,6 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'
 export async function POST(req: Request) {
   try {
     const currentUserId = await requireSession();
-    
-    // 1. Validar roles
-    if (currentUserId === VERIFICADOR_ID) {
-      return NextResponse.json({ error: 'Acción no permitida para el rol de solo lectura' }, { status: 403 });
-    }
 
     const formData = await req.formData();
     const tallySubmissionId = formData.get('tallySubmissionId') as string;
@@ -66,8 +61,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'La URL del archivo no pertenece a este envío en Tally' }, { status: 400 });
     }
 
-    // 2. Control de acceso: si no es superadmin, verificar que el formId pertenece al componente del usuario
-    if (currentUserId !== SUPER_ADMIN_ID) {
+    // 2. Control de acceso: si no es superadmin ni verificador (con poderes globales), verificar que el formId pertenece al componente del usuario
+    const hasGlobalAccess = currentUserId === SUPER_ADMIN_ID || currentUserId === VERIFICADOR_ID;
+    if (!hasGlobalAccess) {
       const tallyForm = await prisma.tallyFormulario.findUnique({
         where: { tallyFormId: formId }
       });
