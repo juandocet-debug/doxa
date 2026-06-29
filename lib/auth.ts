@@ -15,11 +15,11 @@ if (!isBuildPhase) {
   }
 }
 
-const SECRET = process.env.AUTH_SECRET || "fallback-ev-secret-only-for-build-purposes";
+const SECRET = process.env.AUTH_SECRET || "";
 export const COOKIE_NAME      = 'ev_auth';
-export const GENERIC_PASSWORD = process.env.GENERIC_PASSWORD || "dummy-generic-pass";
+export const GENERIC_PASSWORD = process.env.GENERIC_PASSWORD || "";
 export const SUPER_ADMIN_ID   = 'superadmin';
-export const SUPER_PASSWORD   = process.env.SUPER_PASSWORD || "dummy-super-pass";
+export const SUPER_PASSWORD   = process.env.SUPER_PASSWORD || "";
 export const VERIFICADOR_ID   = 'verificador';
 export const VERIFICADOR_PASSWORD = process.env.VERIFICADOR_PASSWORD || "";
 

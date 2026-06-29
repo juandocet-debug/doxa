@@ -5,18 +5,9 @@ const { PrismaClient } = require('@prisma/client');
 
 function createPrisma() {
   const dbUrl = process.env.DATABASE_URL;
-  const isBuildPhase = process.env.NEXT_PHASE?.includes('build') || process.env.VERCEL === '1';
 
   if (!dbUrl) {
-    if (isBuildPhase) {
-      const { Pool } = require('pg');
-      const { PrismaPg } = require('@prisma/adapter-pg');
-      const pool = new Pool({ connectionString: 'postgresql://dummy:dummy@localhost:5432/dummy' });
-      const adapter = new PrismaPg(pool);
-      return new PrismaClient({ adapter });
-    } else {
-      throw new Error("CRITICAL CONFIGURATION ERROR: DATABASE_URL is not set in the environment.");
-    }
+    throw new Error("CRITICAL CONFIGURATION ERROR: DATABASE_URL is not set in the environment.");
   }
 
   if (dbUrl.startsWith('file:') || dbUrl.startsWith('sqlite:')) {
