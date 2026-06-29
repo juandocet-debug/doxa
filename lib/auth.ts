@@ -10,6 +10,9 @@ if (!isBuildPhase) {
   if (!process.env.GENERIC_PASSWORD) {
     throw new Error("CRITICAL CONFIGURATION ERROR: GENERIC_PASSWORD is not set in the environment.");
   }
+  if (!process.env.VERIFICADOR_PASSWORD) {
+    throw new Error("CRITICAL CONFIGURATION ERROR: VERIFICADOR_PASSWORD is not set in the environment.");
+  }
 }
 
 const SECRET = process.env.AUTH_SECRET || "fallback-ev-secret-only-for-build-purposes";
@@ -18,7 +21,7 @@ export const GENERIC_PASSWORD = process.env.GENERIC_PASSWORD || "dummy-generic-p
 export const SUPER_ADMIN_ID   = 'superadmin';
 export const SUPER_PASSWORD   = process.env.SUPER_PASSWORD || "dummy-super-pass";
 export const VERIFICADOR_ID   = 'verificador';
-export const VERIFICADOR_PASSWORD = process.env.VERIFICADOR_PASSWORD || "dummy-verificador-pass";
+export const VERIFICADOR_PASSWORD = process.env.VERIFICADOR_PASSWORD || "";
 
 export async function signToken(compId: string): Promise<string> {
   const enc = new TextEncoder();
