@@ -117,6 +117,7 @@ export default function SuperAdminPage() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={load} style={sBtn}>↻ Actualizar</button>
+            <Link href="/superadmin/usuarios" style={{ ...sBtn, textDecoration: 'none', borderColor: C.lime, color: C.lime }}>⚙️ Configurar Permisos</Link>
             <Link href="/admin/evidencias" style={{ ...sBtn, textDecoration: 'none' }}>Ver como coordinador</Link>
             <button onClick={logout} style={{ ...sBtn, color: C.errorText, borderColor: C.errorBorder }}>⎋ Cerrar sesión</button>
           </div>
