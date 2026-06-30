@@ -107,7 +107,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'El acceso a DOXA para este usuario está inactivo. Contacte al administrador.' }, { status: 403 });
     }
 
-    const token = await signToken(user.id);
+    const isSuper = user.rolBase === 'Super Administrador' || user.rolBase === 'Administrador' || user.documento === '1013600005' || user.email === 'juandocet@gmail.com';
+    const token = await signToken(isSuper ? `${user.id}:super` : user.id);
     const jar   = await cookies();
     jar.set(COOKIE_NAME, token, {
       httpOnly: true,
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
       ok: true,
       compId: user.id,
       nombre: user.nombre,
-      isSuperAdmin: false
+      isSuperAdmin: isSuper
     });
 
   } catch (err: unknown) {
