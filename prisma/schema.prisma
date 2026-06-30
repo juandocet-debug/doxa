@@ -243,3 +243,10 @@ model TallyArchivoSnapshot {
   @@index([questionId])
   @@index([syncStatus])
 }
+
+model TallyDeletedSubmission {
+  id                String   @id @default(cuid())
+  tallySubmissionId String   @unique
+  createdAt         DateTime @default(now())
+}
+

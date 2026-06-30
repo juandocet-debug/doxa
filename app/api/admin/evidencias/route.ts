@@ -123,7 +123,14 @@ export async function GET(req: Request) {
       }
     }
 
-        // 3. Batch query database for all submission approvals in 1 query
+    // 3. Batch query database for all deleted submission IDs
+    const deletedSubs = await prisma.tallyDeletedSubmission.findMany({
+      where: { tallySubmissionId: { in: allSubIds } },
+      select: { tallySubmissionId: true }
+    });
+    const deletedSubIdsSet = new Set(deletedSubs.map(d => d.tallySubmissionId));
+
+    // 4. Batch query database for all submission approvals in 1 query
     const aprobaciones = await prisma.aprobacionTally.findMany({
       where: { tallySubmissionId: { in: allSubIds } }
     });
@@ -189,6 +196,8 @@ export async function GET(req: Request) {
       const fotoQs = questions.filter((q) => q.type === 'FILE_UPLOAD');
 
       for (const sub of submissions) {
+        if (deletedSubIdsSet.has(sub.id)) continue;
+
         const getResp = (qId: string) =>
           sub.responses.find((r) => r.questionId === qId)?.answer;
 
@@ -310,6 +319,13 @@ export async function DELETE(req: Request) {
     const clase = searchParams.get('clase');
 
     if (submissionId) {
+      // Record as permanently deleted
+      await prisma.tallyDeletedSubmission.upsert({
+        where: { tallySubmissionId: submissionId },
+        update: {},
+        create: { tallySubmissionId: submissionId }
+      });
+
       await prisma.tallySubmissionSnapshot.deleteMany({
         where: { tallySubmissionId: submissionId }
       });
@@ -328,6 +344,17 @@ export async function DELETE(req: Request) {
         select: { tallySubmissionId: true }
       });
       const submissionIds = snapshots.map(s => s.tallySubmissionId);
+
+      // Record all these submissionIds as permanently deleted
+      await Promise.all(
+        submissionIds.map(subId =>
+          prisma.tallyDeletedSubmission.upsert({
+            where: { tallySubmissionId: subId },
+            update: {},
+            create: { tallySubmissionId: subId }
+          })
+        )
+      );
 
       await prisma.tallySubmissionSnapshot.deleteMany({
         where: { clase }
