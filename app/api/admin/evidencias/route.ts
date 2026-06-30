@@ -2,23 +2,26 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
 import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
-import { syncSubmissionSnapshot } from '@/lib/sync-service';
 import { DoxaPermisoComponente } from '@prisma/client';
-import { SubmisionEvidencia } from '@/lib/evidencias/types';
-import { fetchSubmissions, extractAnswer, extractFiles } from '@/lib/evidencias/tally-fetch';
-import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { SubmisionMetadata } from '@/lib/evidencias/types';
+import { fetchSubmissions, extractAnswer, invalidateCache } from '@/lib/evidencias/tally-fetch';
 import { deleteSubmission, deleteClase } from '@/lib/evidencias/delete-service';
 
 export async function GET(req: Request) {
+  const startTime = Date.now();
   try {
     const session = await requireUserSession();
 
     const { searchParams } = new URL(req.url);
     const filterComponente = searchParams.get('componente');
     const filterGrupo = searchParams.get('grupo');
-
+    const filterClase = searchParams.get('clase');
     const filterDesde = searchParams.get('desde');
     const filterHasta = searchParams.get('hasta');
+    const filterEstado = searchParams.get('estado'); // 'pendiente' | 'aprobada' | 'rechazada'
+
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.max(1, parseInt(searchParams.get('pageSize') || '20', 10));
 
     let componentes = COMPONENTES;
     if (filterComponente) {
@@ -35,6 +38,7 @@ export async function GET(req: Request) {
     }
 
     // 1. Fetch Tally submissions in parallel
+    const tStartFetch = Date.now();
     const fetchedResults = await Promise.all(
       componentes.map(async (comp) => {
         try {
@@ -46,6 +50,7 @@ export async function GET(req: Request) {
         }
       })
     );
+    const tFetchMs = Date.now() - tStartFetch;
 
     // 2. Gather all submission IDs
     const allSubIds: string[] = [];
@@ -55,56 +60,30 @@ export async function GET(req: Request) {
       }
     }
 
-    // 3. Batch query database for all deleted submission IDs
-    const deletedSubs = await prisma.tallyDeletedSubmission.findMany({
-      where: { tallySubmissionId: { in: allSubIds } },
-      select: { tallySubmissionId: true }
-    });
-    const deletedSubIdsSet = new Set(deletedSubs.map(d => d.tallySubmissionId));
+    // 3. Batch query database for all deleted submission IDs and approvals
+    const tStartPrisma = Date.now();
+    const [deletedSubs, aprobaciones] = await Promise.all([
+      prisma.tallyDeletedSubmission.findMany({
+        where: { tallySubmissionId: { in: allSubIds } },
+        select: { tallySubmissionId: true }
+      }),
+      prisma.aprobacionTally.findMany({
+        where: { tallySubmissionId: { in: allSubIds } }
+      })
+    ]);
+    const tPrismaMs = Date.now() - tStartPrisma;
 
-    // 4. Batch query database for all submission approvals in 1 query
-    const aprobaciones = await prisma.aprobacionTally.findMany({
-      where: { tallySubmissionId: { in: allSubIds } }
-    });
+    const deletedSubIdsSet = new Set(deletedSubs.map(d => d.tallySubmissionId));
     const aprobMap = new Map<string, typeof aprobaciones[0]>(
       aprobaciones.map((a) => [a.tallySubmissionId, a])
     );
 
-    // Query active Cloudinary replacements
-    const replacements = await prisma.evidenciaTallyReemplazo.findMany({
-      where: {
-        tallySubmissionId: { in: allSubIds },
-        active: true,
-      },
-    });
-    const replacementMap = new Map<string, typeof replacements[0]>();
-    for (const r of replacements) {
-      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
-    }
+    const mappedSubmissions: SubmisionMetadata[] = [];
+    const clasesConEnvio = new Set<string>();
+    const estadoPorClase = new Map<string, string>();
 
-    // Query Tally archive snapshots
-    const archives = await prisma.tallyArchivoSnapshot.findMany({
-      where: {
-        tallySubmissionId: { in: allSubIds }
-      }
-    });
-    const archiveMap = new Map<string, typeof archives[0]>();
-    for (const a of archives) {
-      archiveMap.set(cleanUrl(a.tallyFileUrl), a);
-    }
-
-    // Query Tally submission snapshots
-    const snapshots = await prisma.tallySubmissionSnapshot.findMany({
-      where: { tallySubmissionId: { in: allSubIds } }
-    });
-    const snapshotMap = new Map<string, typeof snapshots[0]>();
-    for (const s of snapshots) {
-      snapshotMap.set(s.tallySubmissionId, s);
-    }
-
-    const allSubmissions: SubmisionEvidencia[] = [];
-
-    // 4. Map results and build responses
+    // 4. Map results and filter basic metadata
+    const tStartMap = Date.now();
     for (const result of fetchedResults) {
       if (result.error || !result.data) continue;
       const { comp } = result;
@@ -116,7 +95,6 @@ export async function GET(req: Request) {
       const claseQ = questions.find(
         (q) => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número')
       );
-      const fotoQs = questions.filter((q) => q.type === 'FILE_UPLOAD');
 
       for (const sub of submissions) {
         if (deletedSubIdsSet.has(sub.id)) continue;
@@ -126,100 +104,61 @@ export async function GET(req: Request) {
 
         const grupo = grupoQ ? extractAnswer(getResp(grupoQ.id)) : '';
         const clase = claseQ ? extractAnswer(getResp(claseQ.id)) : '';
-
         const fechaEnvio = sub.submittedAt ?? sub.createdAt;
+        const aprobacion = aprobMap.get(sub.id);
+        const estado = (aprobacion?.estado as 'pendiente' | 'aprobada' | 'rechazada') ?? 'pendiente';
+
+        // Keep track of all classes and statuses for tabs
+        if (clase) {
+          clasesConEnvio.add(clase);
+          // Standard tab highlighting logic: approve > reject > pending
+          const currentStatus = estadoPorClase.get(clase);
+          if (!currentStatus || currentStatus === 'pendiente' || (currentStatus === 'rechazada' && estado === 'aprobada')) {
+            estadoPorClase.set(clase, estado);
+          }
+        }
+
+        // Apply filters
+        if (filterClase && clase !== filterClase) continue;
+        if (filterGrupo && grupo !== filterGrupo) continue;
         if (filterDesde && new Date(fechaEnvio) < new Date(filterDesde)) continue;
         if (filterHasta && new Date(fechaEnvio) > new Date(filterHasta + 'T23:59:59')) continue;
+        if (filterEstado && estado !== filterEstado) continue;
 
-        if (filterGrupo && grupo !== filterGrupo) continue;
-
-        const fotos = fotoQs.map((q) => {
-          const files = extractFiles(getResp(q.id));
-          const archivos = files.map((file) => {
-            const fileClean = cleanUrl(file.url);
-            const repl = replacementMap.get(fileClean);
-            if (repl) {
-              return {
-                id: file.id,
-                name: repl.replacementName || file.name,
-                url: repl.replacementUrl,
-                mimeType: repl.replacementMime || file.mimeType,
-                size: repl.replacementSize || file.size,
-                isReplaced: true,
-                originalUrl: file.url,
-                originalName: file.name,
-                motivoReemplazo: repl.motivo,
-                syncStatus: 'synced',
-              };
-            }
-
-            const arch = archiveMap.get(fileClean);
-            if (arch && arch.syncStatus === 'synced' && arch.cloudinaryUrl) {
-              return {
-                id: file.id,
-                name: arch.tallyFileName || file.name,
-                url: arch.cloudinaryUrl,
-                mimeType: arch.cloudinaryMime || file.mimeType,
-                size: arch.cloudinarySize || file.size,
-                isSynced: true,
-                syncStatus: 'synced',
-                originalUrl: file.url,
-              };
-            }
-
-            return {
-              id: file.id,
-              name: file.name,
-              url: file.url,
-              mimeType: file.mimeType,
-              size: file.size,
-              isSynced: arch ? arch.syncStatus === 'synced' : false,
-              syncStatus: arch ? arch.syncStatus : 'pending',
-              syncError: arch ? arch.syncError : null,
-              originalUrl: file.url,
-            };
-          });
-          return {
-            label: q.title ?? q.id,
-            archivos,
-          };
-        });
-
-        const aprobacion = aprobMap.get(sub.id);
-
-        allSubmissions.push({
+        mappedSubmissions.push({
           submissionId: sub.id,
           formId: comp.formId,
           componenteId: comp.id,
           componenteNombre: comp.nombre,
           grupo,
           clase,
-          fechaEnvio: sub.submittedAt ?? sub.createdAt,
-          fotos,
-          estado: (aprobacion?.estado as 'pendiente' | 'aprobada' | 'rechazada') ?? 'pendiente',
+          fechaEnvio,
+          estado,
           notas: aprobacion?.notas ?? null,
         });
-
-        const canBackup = await checkComponentPermission(session, comp.id, 'puedeSincronizarBackup');
-        if (canBackup) {
-          const existingSnapshot = snapshotMap.get(sub.id);
-          const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
-          const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
-
-          if (!existingSnapshot || hasUnsynced) {
-            syncSubmissionSnapshot(comp.formId, sub.id).catch((err) => {
-              console.error(`Automatic background backup failed for ${sub.id}:`, err);
-            });
-          }
-        }
       }
     }
 
-    allSubmissions.sort(
+    mappedSubmissions.sort(
       (a, b) => new Date(b.fechaEnvio).getTime() - new Date(a.fechaEnvio).getTime()
     );
 
-    return NextResponse.json({ submissions: allSubmissions });
+    const total = mappedSubmissions.length;
+    const paginated = mappedSubmissions.slice((page - 1) * pageSize, page * pageSize);
+    const tMapMs = Date.now() - tStartMap;
+
+    const totalMs = Date.now() - startTime;
+    console.log(`[GET /api/admin/evidencias] fetch tally: ${tFetchMs}ms, prisma: ${tPrismaMs}ms, map: ${tMapMs}ms, total request: ${totalMs}ms`);
+
+    return NextResponse.json({
+      submissions: paginated,
+      page,
+      pageSize,
+      total,
+      hasNext: page * pageSize < total,
+      clasesConEnvio: Array.from(clasesConEnvio),
+      estadoPorClase: Object.fromEntries(estadoPorClase)
+    });
   } catch (e: unknown) {
     if (e instanceof AuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -237,6 +176,7 @@ export async function DELETE(req: Request) {
     const clase = searchParams.get('clase');
 
     let targetComponentId: string | null = null;
+    let formIdToInvalidate: string | null = null;
 
     if (submissionId) {
       const snap = await prisma.tallySubmissionSnapshot.findUnique({
@@ -244,6 +184,7 @@ export async function DELETE(req: Request) {
       });
       if (snap) {
         targetComponentId = snap.componenteId;
+        formIdToInvalidate = snap.formId;
       }
     } else if (clase) {
       const snap = await prisma.tallySubmissionSnapshot.findFirst({
@@ -251,6 +192,7 @@ export async function DELETE(req: Request) {
       });
       if (snap) {
         targetComponentId = snap.componenteId;
+        formIdToInvalidate = snap.formId;
       }
     }
 
@@ -269,11 +211,13 @@ export async function DELETE(req: Request) {
 
     if (submissionId) {
       await deleteSubmission(submissionId, sessionUserId, targetComponentId);
+      if (formIdToInvalidate) invalidateCache(formIdToInvalidate);
       return NextResponse.json({ success: true, message: `Entrega ${submissionId} y sus archivos en Cloudinary eliminados` });
     }
 
     if (clase) {
       await deleteClase(clase, sessionUserId, targetComponentId);
+      if (formIdToInvalidate) invalidateCache(formIdToInvalidate);
       return NextResponse.json({ success: true, message: `Clase ${clase} y sus archivos en Cloudinary eliminados` });
     }
 

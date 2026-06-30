@@ -1,5 +1,5 @@
-import React from 'react';
-import { SubmisionEvidencia, Preview } from '../types';
+import React, { useEffect } from 'react';
+import { SubmisionEvidencia, Preview, TallyFile } from '../types';
 import { ICONS } from './Icons';
 
 interface FolderCardProps {
@@ -19,10 +19,9 @@ export function FolderCard({
   zipName,
   C,
 }: FolderCardProps) {
-  const totalFotos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
   const estadoColor = sub.estado === 'aprobada' ? '#4ade80' : sub.estado === 'rechazada' ? '#f87171' : '#fbbf24';
   const estadoLabel = sub.estado === 'aprobada' ? 'Aprobada' : sub.estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
-  const thumbs      = sub.fotos.flatMap(g => g.archivos).filter(a => a.mimeType?.startsWith('image/')).slice(0, 4);
+  const thumbs      = sub.fotos ? sub.fotos.flatMap(g => g.archivos).filter(a => a.mimeType?.startsWith('image/')).slice(0, 4) : [];
 
   // Folder colors by state
   const folderTab  = sub.estado === 'aprobada' ? '#3a8f5a' : sub.estado === 'rechazada' ? '#8f3a3a' : '#3a5a8f';
@@ -94,7 +93,7 @@ export function FolderCard({
             {sub.clase}
           </p>
           <p style={{ margin: '0 0 8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-            {totalFotos} archivo{totalFotos !== 1 ? 's' : ''}
+            {sub.clase} · Evidencias
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -140,7 +139,6 @@ interface DetailCardProps {
   setReemplazarModal: (val: any) => void;
   setReemplazarMotivo: (val: string) => void;
   setReemplazarFile: (val: File | null) => void;
-  setReemplazarError: (val: string) => void;
   setReemplazarFilePreview: (val: string | null) => void;
   handleUploadToDrive: (sub: SubmisionEvidencia) => void;
   handleSyncBackup: (sub: { formId: string; submissionId: string }) => void;
@@ -149,6 +147,11 @@ interface DetailCardProps {
   sBtn: () => React.CSSProperties;
   zipName: string;
   C: Record<string, string>;
+  
+  // Lazy files props
+  loadedFiles: Record<string, { label: string; archivos: TallyFile[] }[]>;
+  loadingFiles: Record<string, boolean>;
+  fetchFilesForSubmission: (submissionId: string) => Promise<void>;
 }
 
 export function DetailCard({
@@ -164,7 +167,6 @@ export function DetailCard({
   setReemplazarModal,
   setReemplazarMotivo,
   setReemplazarFile,
-  setReemplazarError,
   setReemplazarFilePreview,
   handleUploadToDrive,
   handleSyncBackup,
@@ -173,9 +175,19 @@ export function DetailCard({
   sBtn,
   zipName,
   C,
+  
+  loadedFiles,
+  loadingFiles,
+  fetchFilesForSubmission,
 }: DetailCardProps) {
-  const totalArchivos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
-  const todasFotos = sub.fotos.flatMap(g => g.archivos.map(a => ({ ...a, label: g.label })));
+  useEffect(() => {
+    fetchFilesForSubmission(sub.submissionId);
+  }, [sub.submissionId, fetchFilesForSubmission]);
+
+  const filesForSub = loadedFiles[sub.submissionId] || [];
+  const isLoading = loadingFiles[sub.submissionId];
+  const totalArchivos = filesForSub.reduce((a, f) => a + f.archivos.length, 0);
+  const todasFotos = filesForSub.flatMap(g => g.archivos.map(a => ({ ...a, label: g.label })));
 
   return (
     <div style={{ background: 'rgba(10,18,30,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 80px rgba(0,0,0,0.65)', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -190,7 +202,7 @@ export function DetailCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, fontSize: '0.72rem', color: C.textMuted }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ICONS.Calendar size={12} /> {new Date(sub.fechaEnvio).toLocaleString('es-CO')}</span>
               <span>·</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ICONS.File size={12} /> {totalArchivos} archivos</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ICONS.File size={12} /> {isLoading ? 'Cargando...' : `${totalArchivos} archivos`}</span>
             </div>
           </div>
         </div>
@@ -236,100 +248,107 @@ export function DetailCard({
       )}
 
       {/* Grid of files inside submission */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
-        {todasFotos.map((archivo, ai) => {
-          const isSelected = preview?.url === archivo.url;
-          const fileExt = (archivo.name.split('.').pop() || '').toLowerCase();
-          let badgeBg = 'rgba(107, 114, 128, 0.15)';
-          let badgeColor = '#9CA3AF';
-          if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt)) {
-            badgeBg = fileExt === 'png' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(167, 139, 250, 0.15)';
-            badgeColor = fileExt === 'png' ? '#34D399' : '#A78BFA';
-          } else if (fileExt === 'pdf') {
-            badgeBg = 'rgba(239, 68, 68, 0.15)';
-            badgeColor = '#EF4444';
-          }
-          const sizeMB = archivo.size ? (archivo.size / (1024 * 1024)).toFixed(1) + ' MB' : '0.0 MB';
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: C.textMuted, fontSize: '0.9rem' }}>
+          <div style={{ width: 24, height: 24, border: '2px solid rgba(16,185,129,0.2)', borderTopColor: C.lime, borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 10px' }} />
+          Cargando archivos de evidencia...
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
+          {todasFotos.map((archivo, ai) => {
+            const isSelected = preview?.url === archivo.downloadUrl;
+            const fileExt = (archivo.name.split('.').pop() || '').toLowerCase();
+            let badgeBg = 'rgba(107, 114, 128, 0.15)';
+            let badgeColor = '#9CA3AF';
+            if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt)) {
+              badgeBg = fileExt === 'png' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(167, 139, 250, 0.15)';
+              badgeColor = fileExt === 'png' ? '#34D399' : '#A78BFA';
+            } else if (fileExt === 'pdf') {
+              badgeBg = 'rgba(239, 68, 68, 0.15)';
+              badgeColor = '#EF4444';
+            }
+            const sizeMB = archivo.size ? (archivo.size / (1024 * 1024)).toFixed(1) + ' MB' : '0.0 MB';
 
-          return (
-            <div key={ai} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
-              <div style={{ position: 'relative', width: '100%', height: 140, borderRadius: 8, overflow: 'hidden', background: C.input, border: '1px solid rgba(255,255,255,0.04)' }}>
-                <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label: archivo.label })} style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block', outline: 'none' }}>
-                  {archivo.mimeType?.startsWith('image/') ? (
-                    <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
-                      <ICONS.File size={40} />
-                    </div>
-                  )}
-                </button>
-
-                {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
-                  <div style={{ position: 'absolute', top: 8, left: 8, width: 22, height: 22, borderRadius: '50%', background: '#10B981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>✓</div>
-                )}
-
-                {puedeReemplazar && (
-                  <button onClick={() => {
-                    setReemplazarModal({
-                      submissionId: sub.submissionId,
-                      formId: sub.formId,
-                      questionId: null,
-                      tallyFileUrl: archivo.originalUrl || archivo.url,
-                      tallyFileName: archivo.originalName || archivo.name,
-                      currentName: archivo.name,
-                      currentUrl: archivo.url,
-                    });
-                    setReemplazarMotivo('');
-                    setReemplazarFile(null);
-                    setReemplazarError('');
-                    setReemplazarFilePreview(null);
-                  }} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(15,23,42,0.85)', border: `1px solid ${C.lime}`, color: C.lime, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ICONS.Sync size={12} />
+            return (
+              <div key={ai} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+                <div style={{ position: 'relative', width: '100%', height: 140, borderRadius: 8, overflow: 'hidden', background: C.input, border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block', outline: 'none' }}>
+                    {archivo.mimeType?.startsWith('image/') ? (
+                      <img src={archivo.url} alt={archivo.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
+                        <ICONS.File size={40} />
+                      </div>
+                    )}
                   </button>
-                )}
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                <span style={{ alignSelf: 'flex-start', fontSize: '0.58rem', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: badgeBg, color: badgeColor, textTransform: 'uppercase' }}>{fileExt}</span>
-                <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', margin: '4px 0 2px', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{archivo.label.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}</h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString()}</span>
-                  <span>|</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Disk size={11} /> {sizeMB}</span>
-                </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                  {archivo.isReplaced && (
-                    <span title={`Original: ${archivo.originalName}\nMotivo: ${archivo.motivoReemplazo}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(52,211,153,0.2)' }}>✓ Reemplazado</span>
+                  {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
+                    <div style={{ position: 'absolute', top: 8, left: 8, width: 22, height: 22, borderRadius: '50%', background: '#10B981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>✓</div>
                   )}
-                  {archivo.syncStatus === 'synced' ? (
-                    <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#60A5FA', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)', alignItems: 'center', gap: 4 }}>
-                      <ICONS.Cloud size={11} /> Respaldado
-                    </span>
-                  ) : archivo.syncStatus === 'failed' ? (
-                    <span title={archivo.syncError || 'Error'} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#F87171', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)', alignItems: 'center', gap: 4 }}>
-                      <ICONS.Shield size={11} /> Falla backup
-                    </span>
-                  ) : (
-                    <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4 }}>
-                      <ICONS.Hourglass size={11} /> Backup pend.
-                    </span>
+
+                  {puedeReemplazar && (
+                    <button onClick={() => {
+                      setReemplazarModal({
+                        submissionId: sub.submissionId,
+                        formId: sub.formId,
+                        questionId: null,
+                        tallyFileUrl: archivo.originalUrl || archivo.url,
+                        tallyFileName: archivo.originalName || archivo.name,
+                        currentName: archivo.name,
+                        currentUrl: archivo.downloadUrl || archivo.url,
+                      });
+                      setReemplazarMotivo('');
+                      setReemplazarFile(null);
+                      setReemplazarFilePreview(null);
+                    }} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(15,23,42,0.85)', border: `1px solid ${C.lime}`, color: C.lime, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ICONS.Sync size={12} />
+                    </button>
                   )}
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                <a href={`/api/admin/proxy?url=${encodeURIComponent(archivo.url)}&name=${encodeURIComponent(archivo.name)}`} download={archivo.name} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none' }}>
-                  <ICONS.Download size={13} /> Descargar
-                </a>
-                <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label: archivo.label })} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
-                  <ICONS.Eye size={13} /> Revisar
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                  <span style={{ alignSelf: 'flex-start', fontSize: '0.58rem', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: badgeBg, color: badgeColor, textTransform: 'uppercase' }}>{fileExt}</span>
+                  <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', margin: '4px 0 2px', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{archivo.label.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString()}</span>
+                    <span>|</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Disk size={11} /> {sizeMB}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {archivo.isReplaced && (
+                      <span title={`Original: ${archivo.originalName}\nMotivo: ${archivo.motivoReemplazo}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(52,211,153,0.2)' }}>✓ Reemplazado</span>
+                    )}
+                    {archivo.syncStatus === 'synced' ? (
+                      <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#60A5FA', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)', alignItems: 'center', gap: 4 }}>
+                        <ICONS.Cloud size={11} /> Respaldado
+                      </span>
+                    ) : archivo.syncStatus === 'failed' ? (
+                      <span title={archivo.syncError || 'Error'} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#F87171', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)', alignItems: 'center', gap: 4 }}>
+                        <ICONS.Shield size={11} /> Falla backup
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4 }}>
+                        <ICONS.Hourglass size={11} /> Backup pend.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  <a href={`/api/admin/proxy?url=${encodeURIComponent(archivo.downloadUrl || archivo.url)}&name=${encodeURIComponent(archivo.name)}`} download={archivo.name} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none' }}>
+                    <ICONS.Download size={13} /> Descargar
+                  </a>
+                  <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                    <ICONS.Eye size={13} /> Revisar
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -55,3 +55,7 @@ export function extractFiles(answer: unknown): TallyFile[] {
   if (!Array.isArray(answer)) return [];
   return answer.filter((f) => f && typeof f === 'object' && 'url' in f) as TallyFile[];
 }
+
+export function invalidateCache(formId: string) {
+  tallyCache.delete(formId);
+}

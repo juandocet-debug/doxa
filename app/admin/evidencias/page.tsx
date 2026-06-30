@@ -70,7 +70,6 @@ export default function AdminEvidenciasPage() {
     reemplazarFile,
     setReemplazarFile,
     reemplazarError,
-    setReemplazarError,
     reemplazarSaving,
     reemplazarFilePreview,
     setReemplazarFilePreview,
@@ -93,11 +92,20 @@ export default function AdminEvidenciasPage() {
     onMouseUp,
     clasesConEnvio,
     estadoPorClase,
-    filtered,
     handleSaveNotas,
     handleLogout,
     handleUploadToDrive,
+    
+    // Pagination & lazy files properties
+    page,
+    total,
+    hasNext,
+    loadedFiles,
+    loadingFiles,
+    fetchFilesForSubmission,
   } = useEvidencias();
+
+  const filtered = submissions;
 
   const sBtn = (active = false): React.CSSProperties => ({
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -111,6 +119,8 @@ export default function AdminEvidenciasPage() {
     padding: '0 14px', minHeight: 32, borderRadius: 8, border: 'none',
     background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.78rem', cursor: 'pointer',
   };
+
+  const pageSize = 20;
 
   if (authLoading) {
     return (
@@ -246,7 +256,6 @@ export default function AdminEvidenciasPage() {
                   setReemplazarModal={setReemplazarModal}
                   setReemplazarMotivo={setReemplazarMotivo}
                   setReemplazarFile={setReemplazarFile}
-                  setReemplazarError={setReemplazarError}
                   setReemplazarFilePreview={setReemplazarFilePreview}
                   handleUploadToDrive={handleUploadToDrive}
                   handleSyncBackup={handleSyncBackup}
@@ -255,9 +264,35 @@ export default function AdminEvidenciasPage() {
                   sBtn={sBtn}
                   zipName={zipName}
                   C={C}
+                  loadedFiles={loadedFiles}
+                  loadingFiles={loadingFiles}
+                  fetchFilesForSubmission={fetchFilesForSubmission}
                 />
               );
             })}
+
+            {/* Pagination Controls */}
+            {!loading && total > pageSize && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 24, padding: '12px 0', borderTop: `1px solid ${C.filterBorder}` }}>
+                <button
+                  disabled={page <= 1}
+                  onClick={() => load(page - 1)}
+                  style={{ ...sBtn(), minHeight: 32, opacity: page <= 1 ? 0.5 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  ◀ Anterior
+                </button>
+                <span style={{ fontSize: '0.8rem', color: C.textMuted }}>
+                  Página <strong style={{ color: C.textPrimary }}>{page}</strong> de {Math.ceil(total / pageSize)} ({total} envíos en total)
+                </span>
+                <button
+                  disabled={!hasNext}
+                  onClick={() => load(page + 1)}
+                  style={{ ...sBtn(), minHeight: 32, opacity: !hasNext ? 0.5 : 1, cursor: !hasNext ? 'not-allowed' : 'pointer' }}
+                >
+                  Siguiente ▶
+                </button>
+              </div>
+            )}
           </main>
         )}
       </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { COMPONENTES } from '@/lib/componentes';
-import { SessionComp, SubmisionEvidencia, Preview, SessionPermiso } from '../types';
+import { SessionComp, SubmisionEvidencia, Preview, SessionPermiso, TallyFile } from '../types';
 
 export function useEvidencias() {
   const [session, setSession]         = useState<SessionComp | null>(null);
@@ -26,6 +26,19 @@ export function useEvidencias() {
   const [driveResultModal, setDriveResultModal] = useState<{ success: boolean; message: string } | null>(null);
   const [syncingBackup, setSyncingBackup] = useState<string | null>(null);
 
+  // Pagination states
+  const [page, setPage]               = useState(1);
+  const [pageSize]                    = useState(20);
+  const [total, setTotal]             = useState(0);
+  const [hasNext, setHasNext]         = useState(false);
+
+  // Lazy files state
+  const [loadedFiles, setLoadedFiles] = useState<Record<string, { label: string; archivos: TallyFile[] }[]>>({});
+  const [loadingFiles, setLoadingFiles] = useState<Record<string, boolean>>({});
+
+  const [clasesConEnvio, setClasesConEnvio] = useState<Set<string>>(new Set());
+  const [estadoPorClase, setEstadoPorClase] = useState<Map<string, string>>(new Map());
+
   // States for evidence replacement
   const [reemplazarModal, setReemplazarModal] = useState<{
     submissionId: string;
@@ -42,22 +55,54 @@ export function useEvidencias() {
   const [reemplazarSaving, setReemplazarSaving] = useState(false);
   const [reemplazarFilePreview, setReemplazarFilePreview] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (targetPage = 1) => {
     if (!selectedCompId) return;
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ componente: selectedCompId });
+      const params = new URLSearchParams({
+        componente: selectedCompId,
+        page: String(targetPage),
+        pageSize: String(pageSize),
+      });
       if (filterGrupo) params.set('grupo', filterGrupo);
+      if (filterClase) params.set('clase', filterClase);
       if (filterDesde) params.set('desde', filterDesde);
       if (filterHasta) params.set('hasta', filterHasta);
+      
       const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al cargar');
+      
       setSubmissions(data.submissions ?? []);
+      setTotal(data.total ?? 0);
+      setHasNext(data.hasNext ?? false);
+      setPage(data.page ?? 1);
+      
+      if (data.clasesConEnvio) {
+        setClasesConEnvio(new Set(data.clasesConEnvio));
+      }
+      if (data.estadoPorClase) {
+        setEstadoPorClase(new Map(Object.entries(data.estadoPorClase)));
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error de conexión');
     } finally { setLoading(false); }
-  }, [selectedCompId, filterGrupo, filterDesde, filterHasta]);
+  }, [selectedCompId, filterGrupo, filterClase, filterDesde, filterHasta, pageSize]);
+
+  const fetchFilesForSubmission = useCallback(async (submissionId: string) => {
+    if (loadedFiles[submissionId]) return;
+    setLoadingFiles(prev => ({ ...prev, [submissionId]: true }));
+    try {
+      const res = await fetch(`/api/admin/evidencias/${submissionId}/files`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al cargar archivos');
+      setLoadedFiles(prev => ({ ...prev, [submissionId]: data.fotos || [] }));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [submissionId]: false }));
+    }
+  }, [loadedFiles]);
 
   async function handleReemplazarSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +142,13 @@ export function useEvidencias() {
       }
       setReemplazarFilePreview(null);
       setReemplazarModal(null);
-      load();
+      // Invalidate local files cache for this submission to force re-fetch
+      setLoadedFiles(prev => {
+        const next = { ...prev };
+        delete next[reemplazarModal.submissionId];
+        return next;
+      });
+      load(page);
     } catch (err: unknown) {
       setReemplazarError(err instanceof Error ? err.message : 'Error de conexión');
     } finally {
@@ -115,7 +166,14 @@ export function useEvidencias() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al respaldar evidencias');
-      load();
+      
+      // Invalidate local files cache to show correct backed up checkmarks
+      setLoadedFiles(prev => {
+        const next = { ...prev };
+        delete next[sub.submissionId];
+        return next;
+      });
+      load(page);
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Error al respaldar evidencias';
       alert(errorMsg);
@@ -135,7 +193,7 @@ export function useEvidencias() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al eliminar la entrega');
       setPreview(null);
-      load();
+      load(page);
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Error al eliminar';
       alert(errorMsg);
@@ -153,7 +211,7 @@ export function useEvidencias() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al eliminar la clase');
       setFilterClase('');
-      load();
+      load(1);
     } catch (e: unknown) {
       const errorMsg = e instanceof Error ? e.message : 'Error al eliminar la clase';
       alert(errorMsg);
@@ -174,16 +232,22 @@ export function useEvidencias() {
 
         if (initialCompId) {
           try {
-            const params = new URLSearchParams({ componente: initialCompId });
+            const params = new URLSearchParams({ componente: initialCompId, page: '1', pageSize: String(pageSize) });
             const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
             const data = await res.json();
-            if (res.ok) setSubmissions(data.submissions ?? []);
+            if (res.ok) {
+              setSubmissions(data.submissions ?? []);
+              setTotal(data.total ?? 0);
+              setHasNext(data.hasNext ?? false);
+              if (data.clasesConEnvio) setClasesConEnvio(new Set(data.clasesConEnvio));
+              if (data.estadoPorClase) setEstadoPorClase(new Map(Object.entries(data.estadoPorClase)));
+            }
           } catch { /* se reintenta con ↻ */ }
         }
         setAuthLoading(false);
       })
       .catch(() => { window.location.href = '/login'; });
-  }, []);
+  }, [pageSize]);
 
   const isSuperAdmin = session?.isSuperAdmin === true;
   const userPerm = session?.permisos?.find(p => p.componenteId === selectedCompId);
@@ -201,9 +265,9 @@ export function useEvidencias() {
   useEffect(() => {
     if (session) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      load();
+      load(1);
     }
-  }, [session, load]);
+  }, [session, selectedCompId, filterGrupo, filterClase, filterDesde, filterHasta, load]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -247,10 +311,6 @@ export function useEvidencias() {
   }
 
   function onMouseUp() { setDragging(false); }
-
-  const clasesConEnvio = new Set(submissions.map(s => s.clase));
-  const estadoPorClase = new Map(submissions.map(s => [s.clase, s.estado]));
-  const filtered       = submissions.filter(s => !filterClase || s.clase === filterClase);
 
   async function handleSaveNotas() {
     if (!notasModal) return;
@@ -397,11 +457,19 @@ export function useEvidencias() {
     onMouseUp,
     clasesConEnvio,
     estadoPorClase,
-    filtered,
     handleSaveNotas,
     handleLogout,
     handleUploadToDrive,
     handleAprobar,
     handleRechazar,
+    // Paginated and lazy loader additions
+    page,
+    setPage,
+    total,
+    hasNext,
+    loadedFiles,
+    loadingFiles,
+    fetchFilesForSubmission,
   };
 }
+export type UseEvidenciasReturn = ReturnType<typeof useEvidencias>;

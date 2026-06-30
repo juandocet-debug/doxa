@@ -44,6 +44,9 @@ export async function PATCH(
       create: { tallySubmissionId: id, formId, estado, notas: notas ?? null },
     });
 
+    const { invalidateCache } = await import('@/lib/evidencias/tally-fetch');
+    invalidateCache(formId);
+
     // Write audit trail
     await logAuditoria({
       usuarioId: session.isSuperAdmin ? null : session.userId,
