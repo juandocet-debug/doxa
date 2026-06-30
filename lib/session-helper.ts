@@ -7,7 +7,9 @@ export async function getSession(): Promise<string | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return await verifyToken(token);
+  const raw = await verifyToken(token);
+  if (!raw) return null;
+  return raw.split(':')[0];
 }
 
 export class AuthError extends Error {

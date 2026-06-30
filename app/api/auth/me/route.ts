@@ -21,8 +21,9 @@ export async function GET() {
     });
   }
 
+  const cleanId = compId.split(':')[0];
   const user = await prisma.doxaUsuario.findUnique({
-    where: { id: compId },
+    where: { id: cleanId },
     include: { permisos: true }
   });
 
