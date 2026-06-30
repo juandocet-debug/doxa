@@ -220,7 +220,7 @@ export function useEvidencias() {
 
   // Verificar sesión y cargar datos en una sola pasada
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(async (d: SessionComp) => {
         setSession(d);

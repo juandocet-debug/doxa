@@ -140,27 +140,29 @@ function StatusButton({
 function PermissionPill({
   value,
   disabled,
+  blocked,
   onChange,
 }: {
   value: boolean;
   disabled: boolean;
+  blocked?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || blocked}
       onClick={() => onChange(!value)}
       style={{
         minWidth: 64,
         height: 26,
         borderRadius: 999,
-        border: `1px solid ${value ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)'}`,
-        background: value ? 'rgba(16,185,129,0.72)' : 'rgba(255,255,255,0.06)',
-        color: value ? '#ecfdf5' : '#a9b9ae',
+        border: `1px solid ${blocked ? 'rgba(148,163,184,0.08)' : value ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)'}`,
+        background: blocked ? 'rgba(255,255,255,0.025)' : value ? 'rgba(16,185,129,0.72)' : 'rgba(255,255,255,0.06)',
+        color: blocked ? '#5f7067' : value ? '#ecfdf5' : '#a9b9ae',
         fontSize: '0.72rem',
         fontWeight: 850,
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        cursor: disabled || blocked ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.6 : 1,
         display: 'inline-flex',
         alignItems: 'center',
@@ -168,8 +170,8 @@ function PermissionPill({
         gap: 6
       }}
     >
-      <span aria-hidden="true">{value ? '✓' : '⊙'}</span>
-      {value ? 'Si' : 'No'}
+      <span aria-hidden="true">{blocked ? '⊘' : value ? '✓' : '⊙'}</span>
+      {blocked ? 'Bloq' : value ? 'Si' : 'No'}
     </button>
   );
 }
@@ -405,6 +407,7 @@ export function UsuariosTable({
                           <PermissionPill
                             value={p[perm.key]}
                             disabled={isUpdating}
+                            blocked={perm.key !== 'puedeVer' && !p.puedeVer}
                             onChange={(value) => onPermissionChange(usuario, comp.id, perm.key, value)}
                           />
                         </div>

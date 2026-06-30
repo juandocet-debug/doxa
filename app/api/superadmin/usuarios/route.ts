@@ -2,6 +2,31 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSuperAdmin, AuthError } from '@/lib/session-helper';
 
+type PermisoPayload = {
+  componenteId: string;
+  puedeVer: boolean;
+  puedeAprobar: boolean;
+  puedeDevolver: boolean;
+  puedeReemplazar: boolean;
+  puedeSincronizarBackup: boolean;
+  puedeExportar: boolean;
+};
+
+function normalizePermiso(p: PermisoPayload): PermisoPayload {
+  if (!p.puedeVer) {
+    return {
+      ...p,
+      puedeAprobar: false,
+      puedeDevolver: false,
+      puedeReemplazar: false,
+      puedeSincronizarBackup: false,
+      puedeExportar: false,
+    };
+  }
+
+  return p;
+}
+
 export async function GET() {
   try {
     await requireSuperAdmin();
@@ -31,15 +56,7 @@ export async function PUT(req: Request) {
     const body = await req.json() as {
       userId: string;
       activo: boolean;
-      permisos: Array<{
-        componenteId: string;
-        puedeVer: boolean;
-        puedeAprobar: boolean;
-        puedeDevolver: boolean;
-        puedeReemplazar: boolean;
-        puedeSincronizarBackup: boolean;
-        puedeExportar: boolean;
-      }>;
+      permisos: PermisoPayload[];
     };
 
     if (!body.userId) {
@@ -55,7 +72,9 @@ export async function PUT(req: Request) {
     // Upsert each permission
     if (body.permisos && Array.isArray(body.permisos)) {
       await Promise.all(
-        body.permisos.map((p) =>
+        body.permisos.map((rawPermiso) => {
+          const p = normalizePermiso(rawPermiso);
+          return (
           prisma.doxaPermisoComponente.upsert({
             where: {
               usuarioId_componenteId: {
@@ -82,7 +101,8 @@ export async function PUT(req: Request) {
               puedeExportar: p.puedeExportar,
             },
           })
-        )
+          );
+        })
       );
     }
 

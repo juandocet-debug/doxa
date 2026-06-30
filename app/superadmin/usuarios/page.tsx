@@ -110,8 +110,7 @@ export default function SuperadminUsuariosPage() {
     const currentPerms = [...usuario.permisos];
     const index = currentPerms.findIndex(p => p.componenteId === componenteId);
 
-    if (index === -1) {
-      currentPerms.push({
+    const basePermiso = {
         componenteId,
         puedeVer: false,
         puedeAprobar: false,
@@ -119,13 +118,29 @@ export default function SuperadminUsuariosPage() {
         puedeReemplazar: false,
         puedeSincronizarBackup: false,
         puedeExportar: false,
-        [key]: value
-      });
+    };
+
+    const nextPermiso = {
+      ...(index === -1 ? basePermiso : currentPerms[index]),
+      [key]: value
+    };
+
+    if (key === 'puedeVer' && !value) {
+      nextPermiso.puedeAprobar = false;
+      nextPermiso.puedeDevolver = false;
+      nextPermiso.puedeReemplazar = false;
+      nextPermiso.puedeSincronizarBackup = false;
+      nextPermiso.puedeExportar = false;
+    }
+
+    if (key !== 'puedeVer' && value) {
+      nextPermiso.puedeVer = true;
+    }
+
+    if (index === -1) {
+      currentPerms.push(nextPermiso);
     } else {
-      currentPerms[index] = {
-        ...currentPerms[index],
-        [key]: value
-      };
+      currentPerms[index] = nextPermiso;
     }
 
     saveUserPermissions(usuario, currentPerms, usuario.activo);
