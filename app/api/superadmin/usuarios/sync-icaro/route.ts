@@ -16,32 +16,18 @@ export async function POST() {
       );
     }
 
-    let res = await fetch(`${icaroUrl}/api/auth/usuarios/`, {
+    const res = await fetch(`${icaroUrl}/api/auth/integrations/doxa/users/`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${icaroToken}`,
+        'X-DOXA-SERVICE-TOKEN': icaroToken,
         'Content-Type': 'application/json',
       },
     });
 
-    if (res.status === 401 || res.status === 403) {
-      console.log('Sync Icaro: Bearer authentication returned unauthorized, trying with Token prefix...');
-      const fallbackRes = await fetch(`${icaroUrl}/api/auth/usuarios/`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Token ${icaroToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (fallbackRes.ok) {
-        res = fallbackRes;
-      }
-    }
-
     if (!res.ok) {
       const errText = await res.text();
       console.error('Failed to fetch users from Icaro:', errText, 'Status:', res.status);
-      return NextResponse.json({ error: `Error de Icaro (Status ${res.status}): ${errText.slice(0, 120)}` }, { status: 502 });
+      return NextResponse.json({ error: `Error de Icaro (Status ${res.status})` }, { status: 502 });
     }
 
     const body = await res.json() as { ok: boolean; datos?: Array<{
