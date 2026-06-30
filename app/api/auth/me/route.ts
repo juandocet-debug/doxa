@@ -30,6 +30,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
   }
 
+  const isSuper = user.rolBase === 'Super Administrador' || user.rolBase === 'Administrador';
   return NextResponse.json({
     compId: user.id,
     nombre: user.nombre,
@@ -38,6 +39,6 @@ export async function GET() {
     rolBase: user.rolBase,
     fotoUrl: user.fotoUrl,
     permisos: user.permisos,
-    isSuperAdmin: false
+    isSuperAdmin: isSuper
   });
 }

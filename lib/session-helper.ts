@@ -32,7 +32,13 @@ export async function requireSuperAdmin(): Promise<string> {
   if (!compId) {
     throw new AuthError('No autenticado', 401);
   }
-  if (compId !== SUPER_ADMIN_ID) {
+  if (compId === SUPER_ADMIN_ID) {
+    return compId;
+  }
+  const user = await prisma.doxaUsuario.findUnique({
+    where: { id: compId }
+  });
+  if (!user || !user.activo || (user.rolBase !== 'Super Administrador' && user.rolBase !== 'Administrador')) {
     throw new AuthError('No autorizado', 403);
   }
   return compId;
@@ -56,7 +62,8 @@ export async function requireUserSession(): Promise<UserSession> {
   if (!user || !user.activo) {
     throw new AuthError('Usuario inactivo o no autorizado', 403);
   }
-  return { userId: user.id, isSuperAdmin: false, usuario: user };
+  const isSuper = user.rolBase === 'Super Administrador' || user.rolBase === 'Administrador';
+  return { userId: user.id, isSuperAdmin: isSuper, usuario: user };
 }
 
 export async function checkComponentPermission(
