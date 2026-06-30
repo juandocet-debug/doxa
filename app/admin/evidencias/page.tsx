@@ -125,6 +125,38 @@ const ICONS = {
       <line x1="16" y1="17" x2="8" y2="17" />
       <polyline points="10 9 9 9 8 9" />
     </svg>
+  ),
+  Disk: ({ size = 11 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  ),
+  Copy: ({ size = 14 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  ),
+  Close: ({ size = 14 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  UploadArrow: ({ size = 28 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#10B981', display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  ),
+  CheckCircle: ({ size = 14 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
   )
 };
 
@@ -836,14 +868,20 @@ export default function AdminEvidenciasPage() {
                           background: C.input,
                           border: '1px solid rgba(255,255,255,0.04)'
                         }}>
-                          {archivo.mimeType?.startsWith('image/') ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
-                              <ICONS.File size={40} />
-                            </div>
-                          )}
+                          <button
+                            onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label: archivo.label })}
+                            title="Ver en detalle"
+                            style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block', outline: 'none' }}
+                          >
+                            {archivo.mimeType?.startsWith('image/') ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
+                                <ICONS.File size={40} />
+                              </div>
+                            )}
+                          </button>
 
                           {/* Top-Left: Checkmark badge if synced/active */}
                           {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
@@ -853,7 +891,8 @@ export default function AdminEvidenciasPage() {
                               background: '#10B981', color: '#fff', 
                               display: 'flex', alignItems: 'center', justifyContent: 'center', 
                               fontSize: '0.75rem', fontWeight: 'bold',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.4)'
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                              pointerEvents: 'none'
                             }}>
                               ✓
                             </div>
@@ -917,10 +956,10 @@ export default function AdminEvidenciasPage() {
                           </h4>
 
                           {/* Date and Size */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted, whiteSpace: 'nowrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
                             <span>|</span>
-                            <span>💾 {sizeMB}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Disk size={11} /> {sizeMB}</span>
                           </div>
 
                           {/* Badges block */}
@@ -1201,15 +1240,68 @@ export default function AdminEvidenciasPage() {
 
       {/* Modal Reemplazar Evidencia */}
       {reemplazarModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <form onSubmit={handleReemplazarSubmit} style={{ background: C.surface, border: `1px solid ${C.surfaceBorder}`, borderRadius: 12, padding: 24, width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 70px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ margin: 0, color: C.textPrimary, fontWeight: 800, fontSize: '1.1rem' }}>🔄 Reemplazar Evidencia</h3>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 4, 0.85)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <form onSubmit={handleReemplazarSubmit} style={{ position: 'relative', background: 'rgba(10,18,30,0.96)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 20px 80px rgba(0,0,0,0.7)' }}>
             
-            <div>
-              <p style={{ margin: '0 0 4px', fontSize: '0.74rem', color: C.textMuted }}>Archivo Actual:</p>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: C.lime, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {reemplazarModal.currentName}
-              </p>
+            {/* Close X Button in Top-Right */}
+            <button 
+              type="button" 
+              onClick={() => {
+                if (reemplazarFilePreview) URL.revokeObjectURL(reemplazarFilePreview);
+                setReemplazarFilePreview(null);
+                setReemplazarModal(null);
+              }}
+              style={{
+                position: 'absolute', top: 20, right: 20,
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)',
+                color: C.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.2s', padding: 0
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = C.textMuted; }}
+            >
+              <ICONS.Close size={12} />
+            </button>
+
+            {/* Header with Icon and Subtitle */}
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', paddingRight: 40 }}>
+              <div style={{ 
+                width: 44, height: 44, borderRadius: 12, 
+                background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.22)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10B981'
+              }}>
+                <ICONS.Sync size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, color: '#fff', fontWeight: 800, fontSize: '1.1rem' }}>Reemplazar Evidencia</h3>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 8px', borderRadius: 20, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.62rem', color: '#10B981', fontWeight: 700 }}>
+                  <ICONS.Shield size={9} filled={true} /> Reemplazo seguro
+                </div>
+              </div>
+            </div>
+
+            {/* Current File Box */}
+            <div style={{ marginTop: 4 }}>
+              <p style={{ margin: '0 0 6px', fontSize: '0.74rem', color: C.textMuted, fontWeight: 600 }}>Archivo actual:</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span style={{ color: C.textMuted }}><ICONS.File size={16} /></span>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#10B981', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {reemplazarModal.currentName}
+                  </p>
+                </div>
+                <button 
+                  type="button" 
+                  title="Copiar nombre"
+                  onClick={() => navigator.clipboard.writeText(reemplazarModal.currentName)}
+                  style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                  onMouseLeave={e => e.currentTarget.style.color = C.textMuted}
+                >
+                  <ICONS.Copy size={13} />
+                </button>
+              </div>
             </div>
 
             {/* Drag & Drop Zone */}
@@ -1228,21 +1320,21 @@ export default function AdminEvidenciasPage() {
                 }
               }}
               style={{ 
-                border: `2px dashed ${C.surfaceBorder}`, 
-                borderRadius: 10, 
-                padding: '30px 20px', 
+                border: `2px dashed rgba(16,185,129,0.35)`, 
+                borderRadius: 12, 
+                padding: '24px 16px', 
                 textAlign: 'center', 
-                background: 'rgba(255,255,255,0.02)',
+                background: 'rgba(255,255,255,0.01)',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: 160
+                minHeight: 150
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.lime; e.currentTarget.style.background = 'rgba(200,255,122,0.03)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.surfaceBorder; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.lime; e.currentTarget.style.background = 'rgba(16,185,129,0.03)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
               onClick={() => document.getElementById('file-input')?.click()}
             >
               <input 
@@ -1264,17 +1356,25 @@ export default function AdminEvidenciasPage() {
               {reemplazarFilePreview ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={reemplazarFilePreview} alt="Vista previa" style={{ maxWidth: '100%', maxHeight: 130, objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} />
+                  <img src={reemplazarFilePreview} alt="Vista previa" style={{ maxWidth: '100%', maxHeight: 110, objectFit: 'contain', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} />
                   <span style={{ fontSize: '0.78rem', color: C.lime, fontWeight: 700 }}>{reemplazarFile?.name}</span>
                 </div>
               ) : reemplazarFile ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '3rem' }}>📄</span>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10B981' }}>
+                    <ICONS.File size={20} />
+                  </div>
                   <span style={{ fontSize: '0.78rem', color: C.lime, fontWeight: 700 }}>{reemplazarFile.name} (PDF)</span>
                 </div>
               ) : (
-                <div>
-                  <span style={{ fontSize: '2.2rem', display: 'block', marginBottom: 10 }}>📤</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ 
+                    width: 48, height: 48, borderRadius: '50%', 
+                    background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12
+                  }}>
+                    <ICONS.UploadArrow size={20} />
+                  </div>
                   <span style={{ fontSize: '0.85rem', color: C.textPrimary, fontWeight: 700, display: 'block' }}>Arrastra el archivo aquí o haz clic para examinar</span>
                   <span style={{ fontSize: '0.7rem', color: C.textMuted, display: 'block', marginTop: 6 }}>Formatos: JPG, PNG, WEBP, GIF o PDF (Hasta 15MB)</span>
                 </div>
@@ -1282,9 +1382,13 @@ export default function AdminEvidenciasPage() {
             </div>
 
             <div>
-              <label style={{ display: 'block', margin: '0 0 6px', fontSize: '0.76rem', color: C.textMuted, fontWeight: 600 }}>Motivo del reemplazo (Obligatorio):</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 6px' }}>
+                <label style={{ fontSize: '0.76rem', color: C.textMuted, fontWeight: 600 }}>Motivo del reemplazo (Obligatorio):</label>
+                <span style={{ fontSize: '0.68rem', color: C.textMuted }}>{reemplazarMotivo.length}/500</span>
+              </div>
               <textarea 
                 required
+                maxLength={500}
                 value={reemplazarMotivo} 
                 onChange={e => setReemplazarMotivo(e.target.value)} 
                 rows={3}
@@ -1308,12 +1412,16 @@ export default function AdminEvidenciasPage() {
                   setReemplazarModal(null);
                 }} 
                 disabled={reemplazarSaving} 
-                style={sBtn()}
+                style={{ ...sBtn(), display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36 }}
               >
-                Cancelar
+                <ICONS.Close size={13} /> Cancelar
               </button>
-              <button type="submit" disabled={reemplazarSaving} style={{ ...primaryBtn, opacity: reemplazarSaving ? 0.5 : 1, padding: '0 20px', minHeight: 36 }}>
-                {reemplazarSaving ? 'Subiendo...' : 'Confirmar Reemplazo'}
+              <button 
+                type="submit" 
+                disabled={reemplazarSaving} 
+                style={{ ...primaryBtn, opacity: reemplazarSaving ? 0.5 : 1, padding: '0 20px', minHeight: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <ICONS.CheckCircle size={13} /> {reemplazarSaving ? 'Subiendo...' : 'Confirmar Reemplazo'}
               </button>
             </div>
           </form>
