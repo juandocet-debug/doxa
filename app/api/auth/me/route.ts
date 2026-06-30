@@ -35,6 +35,8 @@ export async function GET() {
     nombre: user.nombre,
     email: user.email,
     documento: user.documento,
+    rolBase: user.rolBase,
+    fotoUrl: user.fotoUrl,
     permisos: user.permisos,
     isSuperAdmin: false
   });

@@ -257,6 +257,7 @@ model DoxaUsuario {
   email          String?
   documento      String?
   rolBase        String?
+  fotoUrl        String?
   activo         Boolean  @default(true)
   lastSyncedAt   DateTime?
   createdAt      DateTime @default(now())

@@ -62,11 +62,15 @@ export async function POST(req: Request) {
       cedula?: string;
       primer_nombre?: string;
       primer_apellido?: string;
+      photo_url?: string;
+      cargo?: string;
     }};
 
     const p = profileBody.datos;
     const extId = String(p.user_id);
     const nombre = [p.primer_nombre, p.primer_apellido].filter(Boolean).join(' ') || p.username;
+    const fotoUrl = p.photo_url || null;
+    const rolBase = p.cargo || 'Usuario';
 
     // Sync user locally in Neon
     let user = await prisma.doxaUsuario.findUnique({
@@ -80,7 +84,8 @@ export async function POST(req: Request) {
           nombre,
           email: p.email || null,
           documento: p.cedula || p.username || null,
-          rolBase: 'usuario',
+          rolBase,
+          fotoUrl,
           activo: true
         }
       });
@@ -91,6 +96,8 @@ export async function POST(req: Request) {
           nombre,
           email: p.email || user.email,
           documento: p.cedula || p.username || user.documento,
+          rolBase,
+          fotoUrl,
           lastSyncedAt: new Date()
         }
       });
