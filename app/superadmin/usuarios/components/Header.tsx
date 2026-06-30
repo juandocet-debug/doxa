@@ -16,38 +16,39 @@ export function Header({ syncing, onSync, accent, textPrimary, textMuted }: Head
       justifyContent: 'space-between',
       alignItems: 'center',
       flexWrap: 'wrap',
-      gap: 20,
-      marginBottom: 32
+      gap: 18,
+      marginBottom: 18
     }}>
       <div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 850, margin: 0, letterSpacing: '-0.03em', color: textPrimary }}>
-          Gestión de Permisos DOXA
+        <h1 style={{ fontSize: '1.55rem', fontWeight: 850, margin: 0, color: textPrimary }}>
+          Gestion de Permisos DOXA
         </h1>
-        <p style={{ color: textMuted, margin: '6px 0 0', fontSize: '0.9rem' }}>
-          Lista de usuarios sincronizados de Ágora/Icaro. Asigna permisos por componente estático.
+        <p style={{ color: textMuted, margin: '6px 0 0', fontSize: '0.82rem' }}>
+          Lista de usuarios sincronizados de Agora/Icaro. Asigna permisos por componente estatico.
         </p>
       </div>
-      <div style={{ display: 'flex', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button
           onClick={onSync}
           disabled={syncing}
           style={{
             background: accent,
             color: '#020604',
-            border: 'none',
+            border: '1px solid rgba(167,243,208,0.55)',
             padding: '10px 18px',
             borderRadius: 8,
             fontWeight: 800,
-            fontSize: '0.85rem',
+            fontSize: '0.78rem',
             cursor: syncing ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            transition: 'all 0.15s',
-            opacity: syncing ? 0.7 : 1
+            opacity: syncing ? 0.7 : 1,
+            boxShadow: syncing ? 'none' : '0 0 18px rgba(16,185,129,0.35)'
           }}
         >
-          🔄 {syncing ? 'Sincronizando...' : 'Sincronizar Usuarios'}
+          <span aria-hidden="true">↻</span>
+          {syncing ? 'Sincronizando...' : 'Sincronizar Usuarios'}
         </button>
         <Link
           href="/admin/evidencias"
@@ -58,14 +59,15 @@ export function Header({ syncing, onSync, accent, textPrimary, textMuted }: Head
             padding: '10px 18px',
             borderRadius: 8,
             fontWeight: 700,
-            fontSize: '0.85rem',
+            fontSize: '0.78rem',
             textDecoration: 'none',
             display: 'flex',
             alignItems: 'center',
             gap: 8
           }}
         >
-          📥 Ir a Evidencias
+          <span aria-hidden="true">▣</span>
+          Ir a Evidencias
         </Link>
       </div>
     </div>

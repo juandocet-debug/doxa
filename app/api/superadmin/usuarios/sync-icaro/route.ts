@@ -36,6 +36,7 @@ export async function POST() {
       email?: string;
       nombre_completo: string;
       rolBase?: string;
+      foto_url?: string | null;
     }> };
 
     const icaroUsers = body.datos || [];
@@ -51,6 +52,7 @@ export async function POST() {
           email: item.email || null,
           documento: item.username || null,
           rolBase: item.rolBase || 'usuario',
+          fotoUrl: item.foto_url || null,
           lastSyncedAt: now,
         },
         create: {
@@ -59,6 +61,7 @@ export async function POST() {
           email: item.email || null,
           documento: item.username || null,
           rolBase: item.rolBase || 'usuario',
+          fotoUrl: item.foto_url || null,
           lastSyncedAt: now,
           activo: true,
         },
