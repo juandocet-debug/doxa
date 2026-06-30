@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { Header } from './components/Header';
+import { UsuariosTable, Usuario, Permiso } from './components/UsuariosTable';
 
 // Design tokens
 const C = {
@@ -17,27 +18,6 @@ const C = {
   dangerBorder:  'rgba(239,68,68,0.3)',
   dangerText:    '#FCA5A5',
 };
-
-interface Permiso {
-  componenteId: string;
-  puedeVer: boolean;
-  puedeAprobar: boolean;
-  puedeDevolver: boolean;
-  puedeReemplazar: boolean;
-  puedeSincronizarBackup: boolean;
-  puedeExportar: boolean;
-}
-
-interface Usuario {
-  id: string;
-  nombre: string;
-  email: string | null;
-  documento: string | null;
-  rolBase: string | null;
-  activo: boolean;
-  lastSyncedAt: string | null;
-  permisos: Permiso[];
-}
 
 const COMPONENTES_ESTATICOS = [
   { id: 'comp1', nombre: 'Componente 1 — Mujeres Afro Usmeñas' },
@@ -177,64 +157,13 @@ export default function SuperadminUsuariosPage() {
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         
         {/* Header Section */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 20,
-          marginBottom: 32
-        }}>
-          <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 850, margin: 0, letterSpacing: '-0.03em' }}>
-              Gestión de Permisos DOXA
-            </h1>
-            <p style={{ color: C.textMuted, margin: '6px 0 0', fontSize: '0.9rem' }}>
-              Lista de usuarios sincronizados de Ágora/Icaro. Asigna permisos por componente estático.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              style={{
-                background: C.accent,
-                color: '#020604',
-                border: 'none',
-                padding: '10px 18px',
-                borderRadius: 8,
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                cursor: syncing ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                transition: 'all 0.15s',
-                opacity: syncing ? 0.7 : 1
-              }}
-            >
-              🔄 {syncing ? 'Sincronizando...' : 'Sincronizar Usuarios'}
-            </button>
-            <Link
-              href="/admin/evidencias"
-              style={{
-                background: 'rgba(255,255,255,0.08)',
-                color: C.textPrimary,
-                border: '1px solid rgba(255,255,255,0.12)',
-                padding: '10px 18px',
-                borderRadius: 8,
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                textDecoration: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}
-            >
-              📥 Ir a Evidencias
-            </Link>
-          </div>
-        </div>
+        <Header 
+          syncing={syncing}
+          onSync={handleSync}
+          accent={C.accent}
+          textPrimary={C.textPrimary}
+          textMuted={C.textMuted}
+        />
 
         {/* Feedback Messages */}
         {error && (
@@ -300,183 +229,17 @@ export default function SuperadminUsuariosPage() {
           borderRadius: 16,
           overflow: 'hidden'
         }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
-              Cargando lista de usuarios…
-            </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
-              No se encontraron usuarios.
-            </div>
-          ) : (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', padding: '16px 24px', background: 'rgba(0,0,0,0.2)', borderBottom: `1px solid ${C.surfaceBorder}`, fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: C.textMuted, letterSpacing: '0.05em' }}>
-                <div>Usuario</div>
-                <div>Documento</div>
-                <div>Rol Base</div>
-                <div style={{ textAlign: 'center' }}>Estado</div>
-                <div style={{ textAlign: 'right' }}>Acciones</div>
-              </div>
-
-              {filtered.map(usuario => {
-                const isExpanded = expandedUserId === usuario.id;
-                const isUpdating = updatingUserId === usuario.id;
-
-                return (
-                  <div key={usuario.id} style={{ borderBottom: `1px solid ${C.surfaceBorder}`, transition: 'all 0.15s' }}>
-                    
-                    {/* User Summary Row */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
-                      padding: '20px 24px',
-                      alignItems: 'center',
-                      background: isExpanded ? 'rgba(255,255,255,0.02)' : 'transparent',
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{usuario.nombre}</div>
-                        <div style={{ fontSize: '0.75rem', color: C.textMuted, marginTop: 3 }}>{usuario.email || 'Sin correo electrónico'}</div>
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#fff' }}>{usuario.documento || '—'}</div>
-                      <div style={{ fontSize: '0.85rem' }}>
-                        <span style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontSize: '0.75rem',
-                          color: '#fff',
-                          textTransform: 'capitalize'
-                        }}>
-                          {usuario.rolBase || 'usuario'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleActivoToggle(usuario)}
-                          disabled={isUpdating}
-                          style={{
-                            background: usuario.activo ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                            border: `1px solid ${usuario.activo ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                            color: usuario.activo ? '#A7F3D0' : '#FCA5A5',
-                            padding: '4px 10px',
-                            borderRadius: 20,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s'
-                          }}
-                        >
-                          {usuario.activo ? 'Activo' : 'Inactivo'}
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-                        <button
-                          onClick={() => setExpandedUserId(isExpanded ? null : usuario.id)}
-                          style={{
-                            background: isExpanded ? 'rgba(255,255,255,0.12)' : 'transparent',
-                            color: '#fff',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            padding: '6px 12px',
-                            borderRadius: 6,
-                            fontSize: '0.78rem',
-                            fontWeight: 750,
-                            cursor: 'pointer',
-                            transition: 'all 0.12s'
-                          }}
-                        >
-                          {isExpanded ? 'Ocultar Permisos' : 'Ver Permisos'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Permissions Detail Matrix */}
-                    {isExpanded && (
-                      <div style={{
-                        background: 'rgba(0,0,0,0.4)',
-                        padding: '24px 32px',
-                        borderTop: `1px solid ${C.surfaceBorder}`,
-                      }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 800, margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.05em', color: C.accent }}>
-                          Matriz de Permisos por Componente Estático DOXA
-                        </h3>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          {COMPONENTES_ESTATICOS.map(comp => {
-                            const p = usuario.permisos.find(x => x.componenteId === comp.id) || {
-                              componenteId: comp.id,
-                              puedeVer: false,
-                              puedeAprobar: false,
-                              puedeDevolver: false,
-                              puedeReemplazar: false,
-                              puedeSincronizarBackup: false,
-                              puedeExportar: false
-                            };
-
-                            return (
-                              <div key={comp.id} style={{
-                                display: 'grid',
-                                gridTemplateColumns: '2.5fr 3fr',
-                                alignItems: 'center',
-                                borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                paddingBottom: 10
-                              }}>
-                                <div style={{ fontWeight: 650, fontSize: '0.85rem', color: C.textPrimary }}>
-                                  {comp.nombre}
-                                </div>
-                                <div style={{
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  gap: 16,
-                                }}>
-                                  {[
-                                    { key: 'puedeVer', label: '👁️ Ver' },
-                                    { key: 'puedeAprobar', label: '✅ Aprobar' },
-                                    { key: 'puedeDevolver', label: '↩️ Devolver' },
-                                    { key: 'puedeReemplazar', label: '🔄 Reemplazar' },
-                                    { key: 'puedeSincronizarBackup', label: '🛡️ Backup' },
-                                    { key: 'puedeExportar', label: '📥 Exportar' }
-                                  ].map(perm => (
-                                    <label key={perm.key} style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: 6,
-                                      fontSize: '0.78rem',
-                                      color: p[perm.key as keyof Omit<Permiso, 'componenteId'>] ? '#fff' : C.textMuted,
-                                      cursor: 'pointer',
-                                      userSelect: 'none'
-                                    }}>
-                                      <input
-                                        type="checkbox"
-                                        checked={p[perm.key as keyof Omit<Permiso, 'componenteId'>]}
-                                        disabled={isUpdating}
-                                        onChange={(e) => handlePermissionChange(
-                                          usuario,
-                                          comp.id,
-                                          perm.key as keyof Omit<Permiso, 'componenteId'>,
-                                          e.target.checked
-                                        )}
-                                        style={{
-                                          accentColor: C.accent,
-                                          cursor: 'pointer'
-                                        }}
-                                      />
-                                      {perm.label}
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        
-                      </div>
-                    )}
-
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <UsuariosTable
+            usuarios={filtered}
+            loading={loading}
+            expandedUserId={expandedUserId}
+            setExpandedUserId={setExpandedUserId}
+            updatingUserId={updatingUserId}
+            onActivoToggle={handleActivoToggle}
+            onPermissionChange={handlePermissionChange}
+            C={C}
+            componentesEstaticos={COMPONENTES_ESTATICOS}
+          />
         </div>
 
       </div>

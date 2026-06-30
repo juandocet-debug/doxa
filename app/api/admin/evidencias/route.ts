@@ -1,87 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
-import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
+import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
 import { DoxaPermisoComponente } from '@prisma/client';
-import { deleteFromCloudinary } from '@/lib/cloudinary';
-
-const API = process.env.TALLY_API_URL!;
-const KEY = process.env.TALLY_API_KEY!;
-
-export interface TallyFile {
-  id: string;
-  name: string;
-  url: string;
-  mimeType: string;
-  size: number;
-}
-
-export interface SubmisionEvidencia {
-  submissionId: string;
-  formId: string;
-  componenteId: string;
-  componenteNombre: string;
-  grupo: string;
-  clase: string;
-  fechaEnvio: string;
-  fotos: { label: string; archivos: TallyFile[] }[];
-  estado: 'pendiente' | 'aprobada' | 'rechazada';
-  notas: string | null;
-}
-
-interface CacheEntry {
-  data: {
-    questions: { id: string; title: string; type: string }[];
-    submissions: {
-      id: string;
-      submittedAt: string;
-      createdAt: string;
-      responses: { questionId: string; answer: unknown }[];
-    }[];
-  };
-  timestamp: number;
-}
-
-const tallyCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 20 * 1000; // 20 seconds short-term cache
-
-async function fetchSubmissions(formId: string) {
-  const cached = tallyCache.get(formId);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.data;
-  }
-
-  const res = await fetch(`${API}/forms/${formId}/submissions?limit=500`, {
-    headers: { Authorization: `Bearer ${KEY}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`Tally API ${res.status} for form ${formId}`);
-  const data = await res.json();
-  const parsed = {
-    questions: (data.questions ?? []) as { id: string; title: string; type: string }[],
-    submissions: (data.submissions ?? []) as {
-      id: string;
-      submittedAt: string;
-      createdAt: string;
-      responses: { questionId: string; answer: unknown }[];
-    }[],
-  };
-
-  tallyCache.set(formId, { data: parsed, timestamp: Date.now() });
-  return parsed;
-}
-
-function extractAnswer(answer: unknown): string {
-  if (!answer) return '';
-  if (Array.isArray(answer)) return (answer[0] as string) ?? '';
-  return String(answer);
-}
-
-function extractFiles(answer: unknown): TallyFile[] {
-  if (!Array.isArray(answer)) return [];
-  return answer.filter((f) => f && typeof f === 'object' && 'url' in f) as TallyFile[];
-}
+import { SubmisionEvidencia } from '@/lib/evidencias/types';
+import { fetchSubmissions, extractAnswer, extractFiles } from '@/lib/evidencias/tally-fetch';
+import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { deleteSubmission, deleteClase } from '@/lib/evidencias/delete-service';
 
 export async function GET(req: Request) {
   try {
@@ -143,15 +69,6 @@ export async function GET(req: Request) {
     const aprobMap = new Map<string, typeof aprobaciones[0]>(
       aprobaciones.map((a) => [a.tallySubmissionId, a])
     );
-
-    const cleanUrl = (u: string) => {
-      try {
-        const parsed = new URL(u);
-        return parsed.origin + parsed.pathname;
-      } catch {
-        return u;
-      }
-    };
 
     // Query active Cloudinary replacements
     const replacements = await prisma.evidenciaTallyReemplazo.findMany({
@@ -283,8 +200,6 @@ export async function GET(req: Request) {
           notas: aprobacion?.notas ?? null,
         });
 
-        // Trigger automatic background sync/backup if snapshot is missing or has unsynced files
-        // and the user has 'puedeSincronizarBackup' permission.
         const canBackup = await checkComponentPermission(session, comp.id, 'puedeSincronizarBackup');
         if (canBackup) {
           const existingSnapshot = snapshotMap.get(sub.id);
@@ -350,107 +265,15 @@ export async function DELETE(req: Request) {
       }
     }
 
+    const sessionUserId = session.isSuperAdmin ? null : session.userId;
+
     if (submissionId) {
-      // Record as permanently deleted
-      await prisma.tallyDeletedSubmission.upsert({
-        where: { tallySubmissionId: submissionId },
-        update: {},
-        create: { tallySubmissionId: submissionId }
-      });
-
-      // Gather files & replacements to delete from Cloudinary
-      const fileSnaps = await prisma.tallyArchivoSnapshot.findMany({
-        where: { tallySubmissionId: submissionId },
-        select: { cloudinaryPublicId: true }
-      });
-      const replacements = await prisma.evidenciaTallyReemplazo.findMany({
-        where: { tallySubmissionId: submissionId },
-        select: { replacementPublicId: true }
-      });
-
-      const publicIds = [
-        ...fileSnaps.map(f => f.cloudinaryPublicId),
-        ...replacements.map(r => r.replacementPublicId)
-      ].filter((id): id is string => !!id);
-
-      // Async Cloudinary cleanup
-      await Promise.all(publicIds.map(id => deleteFromCloudinary(id).catch(err => console.error('Cloudinary destroy err:', err))));
-
-      await prisma.tallySubmissionSnapshot.deleteMany({
-        where: { tallySubmissionId: submissionId }
-      });
-      await prisma.aprobacionTally.deleteMany({
-        where: { tallySubmissionId: submissionId }
-      });
-      await prisma.evidenciaTallyReemplazo.deleteMany({
-        where: { tallySubmissionId: submissionId }
-      });
-
-      await logAuditoria({
-        usuarioId: session.isSuperAdmin ? null : session.userId,
-        accion: 'ELIMINAR_ENTREGA',
-        componenteId: targetComponentId,
-        tallySubmissionId: submissionId,
-        detalle: `Se eliminó la entrega ${submissionId} y sus archivos`
-      });
-
+      await deleteSubmission(submissionId, sessionUserId, targetComponentId);
       return NextResponse.json({ success: true, message: `Entrega ${submissionId} y sus archivos en Cloudinary eliminados` });
     }
 
     if (clase) {
-      const snapshots = await prisma.tallySubmissionSnapshot.findMany({
-        where: { clase },
-        select: { tallySubmissionId: true }
-      });
-      const submissionIds = snapshots.map(s => s.tallySubmissionId);
-
-      // Record all these submissionIds as permanently deleted
-      await Promise.all(
-        submissionIds.map(subId =>
-          prisma.tallyDeletedSubmission.upsert({
-            where: { tallySubmissionId: subId },
-            update: {},
-            create: { tallySubmissionId: subId }
-          })
-        )
-      );
-
-      // Gather files & replacements to delete from Cloudinary
-      const fileSnaps = await prisma.tallyArchivoSnapshot.findMany({
-        where: { tallySubmissionId: { in: submissionIds } },
-        select: { cloudinaryPublicId: true }
-      });
-      const replacements = await prisma.evidenciaTallyReemplazo.findMany({
-        where: { tallySubmissionId: { in: submissionIds } },
-        select: { replacementPublicId: true }
-      });
-
-      const publicIds = [
-        ...fileSnaps.map(f => f.cloudinaryPublicId),
-        ...replacements.map(r => r.replacementPublicId)
-      ].filter((id): id is string => !!id);
-
-      // Async Cloudinary cleanup
-      await Promise.all(publicIds.map(id => deleteFromCloudinary(id).catch(err => console.error('Cloudinary destroy err:', err))));
-
-      await prisma.tallySubmissionSnapshot.deleteMany({
-        where: { clase }
-      });
-      await prisma.aprobacionTally.deleteMany({
-        where: { tallySubmissionId: { in: submissionIds } }
-      });
-      await prisma.evidenciaTallyReemplazo.deleteMany({
-        where: { tallySubmissionId: { in: submissionIds } }
-      });
-
-      await logAuditoria({
-        usuarioId: session.isSuperAdmin ? null : session.userId,
-        accion: 'ELIMINAR_CLASE',
-        componenteId: targetComponentId,
-        clase,
-        detalle: `Se eliminaron todas las entregas de la clase ${clase}`
-      });
-
+      await deleteClase(clase, sessionUserId, targetComponentId);
       return NextResponse.json({ success: true, message: `Clase ${clase} y sus archivos en Cloudinary eliminados` });
     }
 
