@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireSession, AuthError } from '@/lib/session-helper';
-import { SUPER_ADMIN_ID, VERIFICADOR_ID } from '@/lib/auth';
+import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { COMPONENTES } from '@/lib/componentes';
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 
 export async function POST(req: Request) {
   try {
-    const currentUserId = await requireSession();
+    const session = await requireUserSession();
 
     const formData = await req.formData();
     const tallySubmissionId = formData.get('tallySubmissionId') as string;
@@ -22,6 +22,18 @@ export async function POST(req: Request) {
 
     if (!tallySubmissionId || !formId || !tallyFileUrl || !motivo || !file) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 });
+    }
+
+    // Resolve component from formId
+    const component = COMPONENTES.find(c => c.formId === formId);
+    if (!component) {
+      return NextResponse.json({ error: 'Componente no válido' }, { status: 400 });
+    }
+
+    // Validate permission
+    const isAuthorized = await checkComponentPermission(session, component.id, 'puedeReemplazar');
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado para reemplazar evidencias en este componente' }, { status: 403 });
     }
 
     // Validate that the tallyFileUrl belongs to this submission and form in Tally
@@ -73,16 +85,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'La URL del archivo no pertenece a este envío en Tally' }, { status: 400 });
     }
 
-    // 2. Control de acceso: si no es superadmin ni verificador (con poderes globales), verificar que el formId pertenece al componente del usuario
-    const hasGlobalAccess = currentUserId === SUPER_ADMIN_ID || currentUserId === VERIFICADOR_ID;
-    if (!hasGlobalAccess) {
-      const tallyForm = await prisma.tallyFormulario.findUnique({
-        where: { tallyFormId: formId }
-      });
-      if (!tallyForm || tallyForm.componenteId !== currentUserId) {
-        return NextResponse.json({ error: 'No está autorizado para modificar evidencias de este formulario' }, { status: 403 });
-      }
-    }
+
 
     // 3. Validar archivo
     if (file.size > MAX_FILE_SIZE) {
@@ -126,10 +129,20 @@ export async function POST(req: Request) {
           replacementMime: file.type,
           replacementSize: file.size,
           motivo,
-          replacedBy: currentUserId,
+          replacedBy: session.userId,
           active: true,
         },
       });
+    });
+
+    // Write audit trail
+    await logAuditoria({
+      usuarioId: session.isSuperAdmin ? null : session.userId,
+      accion: 'REEMPLAZAR_EVIDENCIA',
+      componenteId: component.id,
+      formId,
+      tallySubmissionId,
+      detalle: `Reemplazo de archivo ${tallyFileName || ''}. Motivo: ${motivo}`
     });
 
     return NextResponse.json({ success: true, replacement: result });

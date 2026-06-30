@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import JSZip from 'jszip';
 import { prisma } from '@/lib/db';
-import { requireSession, AuthError } from '@/lib/session-helper';
-import { SUPER_ADMIN_ID } from '@/lib/auth';
+import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
+import { COMPONENTES } from '@/lib/componentes';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -123,9 +123,7 @@ function slug(t: string) {
 
 export async function POST(req: Request) {
   try {
-    const currentUserId = await requireSession();
-    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
-    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
+    const session = await requireUserSession();
 
     const { formId, submissionId, zipName } = await req.json() as {
       formId: string;
@@ -137,14 +135,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
     }
 
-    // Access control: Ensure coordinator owns this form
-    if (!hasGlobalRead) {
-      const tallyForm = await prisma.tallyFormulario.findUnique({
-        where: { tallyFormId: formId }
-      });
-      if (!tallyForm || tallyForm.componenteId !== currentUserId) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-      }
+    // Resolve component from formId
+    const component = COMPONENTES.find(c => c.formId === formId);
+    if (!component) {
+      return NextResponse.json({ error: 'Componente no válido' }, { status: 400 });
+    }
+
+    // Verify permission on backend
+    const isAuthorized = await checkComponentPermission(session, component.id, 'puedeExportar');
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -254,6 +254,16 @@ export async function POST(req: Request) {
     // 2. Autenticar y subir a Google Drive
     const token = await getDriveAccessToken(serviceAccountJson);
     const driveFileId = await uploadToDrive(token, folderId, `${zipName}.zip`, zipBuffer);
+
+    // Write audit trail
+    await logAuditoria({
+      usuarioId: session.isSuperAdmin ? null : session.userId,
+      accion: 'EXPORTAR_DRIVE',
+      componenteId: component.id,
+      formId,
+      tallySubmissionId: submissionId,
+      detalle: `Exportación de evidencias a Google Drive: ${zipName}.zip (Drive File ID: ${driveFileId})`
+    });
 
     return NextResponse.json({
       success: true,

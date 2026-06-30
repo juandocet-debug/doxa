@@ -188,13 +188,22 @@ const C = {
   previewBg:     'rgba(1,4,2,0.97)',
 };
 
-const PAGE_SIZE = 5;
+
+interface SessionPermiso {
+  componenteId: string;
+  puedeVer: boolean;
+  puedeAprobar: boolean;
+  puedeDevolver: boolean;
+  puedeReemplazar: boolean;
+  puedeSincronizarBackup: boolean;
+  puedeExportar: boolean;
+}
 
 interface SessionComp {
   compId: string;
   nombre: string;
-  formId: string;
-  grupos: string[];
+  isSuperAdmin: boolean;
+  permisos: SessionPermiso[];
 }
 
 export default function AdminEvidenciasPage() {
@@ -205,7 +214,7 @@ export default function AdminEvidenciasPage() {
   const [filterClase, setFilterClase] = useState('');
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
-  const [clasePage, setClasePage]     = useState(0);
+
   const [submissions, setSubmissions] = useState<SubmisionEvidencia[]>([]);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
@@ -344,22 +353,38 @@ export default function AdminEvidenciasPage() {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(async (d: SessionComp) => {
         setSession(d);
-        const initialCompId = d.compId === 'verificador' ? 'comp1' : d.compId;
+        // Find first component the user can see
+        const visibleComp = COMPONENTES.find(c =>
+          d.isSuperAdmin || d.permisos?.some((p: SessionPermiso) => p.componenteId === c.id && p.puedeVer)
+        );
+        const initialCompId = visibleComp ? visibleComp.id : '';
         setSelectedCompId(initialCompId);
+
         // Cargar submissions inmediatamente con el componente de sesión
-        try {
-          const params = new URLSearchParams({ componente: initialCompId });
-          const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
-          const data = await res.json();
-          if (res.ok) setSubmissions(data.submissions ?? []);
-        } catch { /* se reintenta con ↻ */ }
+        if (initialCompId) {
+          try {
+            const params = new URLSearchParams({ componente: initialCompId });
+            const res  = await fetch(`/api/admin/evidencias?${params}`, { cache: 'no-store' });
+            const data = await res.json();
+            if (res.ok) setSubmissions(data.submissions ?? []);
+          } catch { /* se reintenta con ↻ */ }
+        }
         setAuthLoading(false);
       })
       .catch(() => { window.location.href = '/login'; });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isReadOnly = session?.compId === 'verificador';
+  const isSuperAdmin = session?.isSuperAdmin === true;
+  const userPerm = session?.permisos?.find(p => p.componenteId === selectedCompId);
+
+  const puedeVer = isSuperAdmin || !!userPerm?.puedeVer;
+  const puedeAprobar = isSuperAdmin || !!userPerm?.puedeAprobar;
+  const puedeDevolver = isSuperAdmin || !!userPerm?.puedeDevolver;
+  const puedeReemplazar = isSuperAdmin || !!userPerm?.puedeReemplazar;
+  const puedeSincronizarBackup = isSuperAdmin || !!userPerm?.puedeSincronizarBackup;
+  const puedeExportar = isSuperAdmin || !!userPerm?.puedeExportar;
+
+  const isReadOnly = !puedeAprobar && !puedeDevolver && !puedeReemplazar && !puedeSincronizarBackup;
   const currentComp = COMPONENTES.find(c => c.id === selectedCompId) ?? null;
 
   const load = useCallback(async () => {
@@ -390,7 +415,6 @@ export default function AdminEvidenciasPage() {
   useEffect(() => {
     Promise.resolve().then(() => {
       setFilterClase('');
-      setClasePage(0);
       setPreview(null);
     });
   }, [filterGrupo]);
@@ -434,32 +458,9 @@ export default function AdminEvidenciasPage() {
   }
   function onMouseUp() { setDragging(false); }
 
-  const totalPages     = Math.ceil(CLASES.length / PAGE_SIZE);
-  const clasesPage     = CLASES.slice(clasePage * PAGE_SIZE, (clasePage + 1) * PAGE_SIZE);
   const clasesConEnvio = new Set(submissions.map(s => s.clase));
   const estadoPorClase = new Map(submissions.map(s => [s.clase, s.estado]));
   const filtered       = submissions.filter(s => !filterClase || s.clase === filterClase);
-
-  function openPreview(sub: SubmisionEvidencia, archivo: TallyFile, label: string) {
-    setPreview(p =>
-      p?.url === archivo.url && p.submissionId === sub.submissionId
-        ? null // toggle off si es la misma
-        : { submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label }
-    );
-  }
-
-  async function handleApprove(sub: SubmisionEvidencia, estado: 'aprobada' | 'rechazada' | 'pendiente') {
-    setApproving(sub.submissionId);
-    try {
-      const res = await fetch(`/api/admin/evidencias/${sub.submissionId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado, formId: sub.formId }),
-      });
-      if (!res.ok) throw new Error();
-      setSubmissions(prev => prev.map(s => s.submissionId === sub.submissionId ? { ...s, estado } : s));
-    } catch { alert('No se pudo actualizar el estado'); }
-    finally { setApproving(null); }
-  }
 
   async function handleSaveNotas() {
     if (!notasModal) return;
@@ -487,12 +488,6 @@ export default function AdminEvidenciasPage() {
     display: 'inline-flex', alignItems: 'center', gap: 6,
     padding: '0 14px', minHeight: 32, borderRadius: 8, border: 'none',
     background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.78rem', cursor: 'pointer',
-  };
-  const dangerBtn: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '0 12px', minHeight: 32, borderRadius: 8,
-    border: `1px solid ${C.errorBorder}`, background: C.errorBg,
-    color: C.errorText, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
   };
 
   // Pantalla de carga de sesión
@@ -547,13 +542,16 @@ export default function AdminEvidenciasPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <div style={{ fontSize: '0.62rem', fontWeight: 800, color: C.lime, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>
-              {isReadOnly ? 'Acceso de Consulta' : 'Panel de Coordinador'}
+              {isSuperAdmin ? 'Administrador' : isReadOnly ? 'Acceso de Consulta' : 'Panel de Coordinador'}
             </div>
             <h1 style={{ fontSize: '1.05rem', fontWeight: 850, color: C.textPrimary, margin: 0 }}>
-              {isReadOnly ? 'Verificador General' : (session?.nombre ?? 'Cargando…')}
+              {isSuperAdmin ? 'Super Administrador' : (session?.nombre ?? 'Cargando…')}
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {isSuperAdmin && (
+              <a href="/superadmin/usuarios" style={{ ...sBtn(), textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>⚙️ Configurar Permisos</a>
+            )}
             <button onClick={load} disabled={loading} style={sBtn()}>{loading ? '⟳' : '↻ Actualizar'}</button>
             <button onClick={handleLogout} style={{ ...sBtn(), color: C.errorText, borderColor: C.errorBorder }}>⎋ Cerrar sesión</button>
           </div>
@@ -563,12 +561,20 @@ export default function AdminEvidenciasPage() {
       {/* Filtro grupo */}
       <div style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '9px 24px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          {isReadOnly && (
-            <select value={selectedCompId} onChange={e => { setSelectedCompId(e.target.value); setFilterGrupo(''); }}
-              style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220, maxWidth: 300 }}>
-              {COMPONENTES.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-          )}
+          {(() => {
+            const visibleComponentes = COMPONENTES.filter(c =>
+              isSuperAdmin || session?.permisos?.some((p: SessionPermiso) => p.componenteId === c.id && p.puedeVer)
+            );
+            if (visibleComponentes.length > 1) {
+              return (
+                <select value={selectedCompId} onChange={e => { setSelectedCompId(e.target.value); setFilterGrupo(''); }}
+                  style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220, maxWidth: 300 }}>
+                  {visibleComponentes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              );
+            }
+            return null;
+          })()}
           <select value={filterGrupo} onChange={e => setFilterGrupo(e.target.value)}
             style={{ background: C.input, border: `1px solid ${C.inputBorder}`, borderRadius: 8, color: C.textPrimary, padding: '0 12px', minHeight: 36, fontSize: '0.82rem', outline: 'none', minWidth: 220, maxWidth: 300 }}>
             <option value="">— Todos los grupos —</option>
@@ -625,9 +631,15 @@ export default function AdminEvidenciasPage() {
 
       {/* Body: contenido a pantalla completa */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
-        <main style={{ flex: 1, width: '100%', overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {error && <div style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, borderRadius: 8, padding: '12px 16px', color: C.errorText, fontSize: '0.85rem' }}>{error}</div>}
-          {loading && <div style={{ textAlign: 'center', padding: '80px 0', color: C.textMuted, fontSize: '0.9rem' }}>Cargando evidencias…</div>}
+        {!puedeVer ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.surface, margin: 24, borderRadius: 12, border: `1px solid ${C.surfaceBorder}` }}>
+            <p style={{ fontSize: '2.5rem', marginBottom: 8 }}>🔒</p>
+            <p style={{ color: C.textMuted, fontSize: '0.9rem' }}>No tienes permiso para ver este componente.</p>
+          </div>
+        ) : (
+          <main style={{ flex: 1, width: '100%', overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {error && <div style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, borderRadius: 8, padding: '12px 16px', color: C.errorText, fontSize: '0.85rem' }}>{error}</div>}
+            {loading && <div style={{ textAlign: 'center', padding: '80px 0', color: C.textMuted, fontSize: '0.9rem' }}>Cargando evidencias…</div>}
           {!loading && !error && filtered.length === 0 && (
             <div style={{ textAlign: 'center', padding: '80px 0', background: C.surface, border: `1px solid ${C.surfaceBorder}`, borderRadius: 12 }}>
               <p style={{ fontSize: '2.5rem', marginBottom: 8 }}>📋</p>
@@ -661,7 +673,7 @@ export default function AdminEvidenciasPage() {
                     onClick={() => setFilterClase(sub.clase)}>
 
                     {/* Trash Button to delete class */}
-                    {!isReadOnly && (
+                    {puedeAprobar && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -765,12 +777,8 @@ export default function AdminEvidenciasPage() {
 
           {/* ── Vista DETALLE: cuando hay una clase seleccionada ── */}
           {!loading && !!filterClase && filtered.map(sub => {
-            const totalArchivos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
-            const estadoColor    = sub.estado === 'aprobada' ? C.lime : sub.estado === 'rechazada' ? C.errorText : '#FDE68A';
-            const estadoBg       = sub.estado === 'aprobada' ? 'rgba(200,255,122,0.12)' : sub.estado === 'rechazada' ? C.errorBg : 'rgba(253,230,138,0.12)';
-            const estadoBorder   = sub.estado === 'aprobada' ? 'rgba(200,255,122,0.28)' : sub.estado === 'rechazada' ? C.errorBorder : C.surfaceBorder;
-            const estadoLabel    = sub.estado === 'aprobada' ? 'Aprobada' : sub.estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
             const subPreview     = preview?.submissionId === sub.submissionId ? preview : null;
+            const totalArchivos  = sub.fotos.reduce((a, f) => a + f.archivos.length, 0);
 
             // Todas las fotos del envío en una sola lista plana para el panel
             const todasFotos = sub.fotos.flatMap(g => g.archivos.map(a => ({ ...a, label: g.label })));
@@ -826,57 +834,65 @@ export default function AdminEvidenciasPage() {
                       <ICONS.Shield size={13} filled={true} /> Estado del respaldo
                     </div>
 
-                    <a
-                      href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`}
-                      download={`${zipName}.zip`}
-                      style={{ 
-                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
-                        background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none', transition: 'all 0.2s' 
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                      onMouseLeave={e => e.currentTarget.style.filter = 'none'}
-                    >
-                      <ICONS.Zip size={13} /> ZIP
-                    </a>
+                    {puedeExportar && (
+                      <>
+                        <a
+                          href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`}
+                          download={`${zipName}.zip`}
+                          style={{ 
+                            display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
+                            background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none', transition: 'all 0.2s' 
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                          onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                        >
+                          <ICONS.Zip size={13} /> ZIP
+                        </a>
 
-                    <button
-                      onClick={() => handleUploadToDrive(sub)}
-                      disabled={uploadingDrive === sub.submissionId}
-                      style={{ 
-                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', 
-                        background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', 
-                        opacity: uploadingDrive === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                      onMouseLeave={e => e.currentTarget.style.filter = 'none'}
-                    >
-                      <ICONS.Cloud size={13} /> Drive
-                    </button>
+                        <button
+                          onClick={() => handleUploadToDrive(sub)}
+                          disabled={uploadingDrive === sub.submissionId}
+                          style={{ 
+                            display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', 
+                            background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', 
+                            opacity: uploadingDrive === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                          onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                        >
+                          <ICONS.Cloud size={13} /> Drive
+                        </button>
+                      </>
+                    )}
 
-                    <button
-                      onClick={() => handleSyncBackup(sub)}
-                      disabled={syncingBackup === sub.submissionId}
-                      style={{ 
-                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
-                        background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, 
-                        fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s' 
-                      }}
-                    >
-                      <ICONS.Sync size={13} /> Sincronizar
-                    </button>
+                    {puedeSincronizarBackup && (
+                      <button
+                        onClick={() => handleSyncBackup(sub)}
+                        disabled={syncingBackup === sub.submissionId}
+                        style={{ 
+                          display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
+                          background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, 
+                          fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s' 
+                        }}
+                      >
+                        <ICONS.Sync size={13} /> Sincronizar
+                      </button>
+                    )}
 
-                    <button 
-                      onClick={() => handleDeleteSubmission(sub.submissionId)} 
-                      style={{ 
-                        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, 
-                        background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, 
-                        fontSize: '0.75rem', cursor: 'pointer', transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#EF4444'; e.currentTarget.style.color = '#fff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#F87171'; }}
-                    >
-                      <ICONS.Trash size={13} /> Eliminar
-                    </button>
+                    {puedeAprobar && (
+                      <button 
+                        onClick={() => handleDeleteSubmission(sub.submissionId)} 
+                        style={{ 
+                          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, 
+                          background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, 
+                          fontSize: '0.75rem', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#EF4444'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#F87171'; }}
+                      >
+                        <ICONS.Trash size={13} /> Eliminar
+                      </button>
+                    )}
 
                     <button onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                       <ICONS.Back size={13} /> Volver
@@ -978,8 +994,9 @@ export default function AdminEvidenciasPage() {
                           )}
 
                           {/* Top-Right: Floating Replace Action Button */}
-                          <button
-                            onClick={(e) => {
+                          {puedeReemplazar && (
+                            <button
+                              onClick={(e) => {
                               e.stopPropagation();
                               setReemplazarModal({
                                 submissionId: sub.submissionId,
@@ -1010,6 +1027,7 @@ export default function AdminEvidenciasPage() {
                           >
                             <ICONS.Sync size={12} />
                           </button>
+                          )}
                         </div>
 
                         {/* Card Content */}
@@ -1263,7 +1281,8 @@ export default function AdminEvidenciasPage() {
               </div>
             );
           })}
-        </main>
+          </main>
+        )}
       </div>
 
       {/* Modal notas */}

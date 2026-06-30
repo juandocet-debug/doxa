@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { COMPONENTES } from '@/lib/componentes';
-import { verifyToken, COOKIE_NAME, SUPER_ADMIN_ID, VERIFICADOR_ID } from '@/lib/auth';
+import { verifyToken, COOKIE_NAME, SUPER_ADMIN_ID } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export async function GET() {
   const jar    = await cookies();
@@ -12,15 +12,30 @@ export async function GET() {
   if (!compId)  return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 });
 
   if (compId === SUPER_ADMIN_ID) {
-    return NextResponse.json({ compId: SUPER_ADMIN_ID, nombre: 'Super Administrador', isSuperAdmin: true, grupos: [] });
+    return NextResponse.json({
+      compId: SUPER_ADMIN_ID,
+      nombre: 'Super Administrador',
+      isSuperAdmin: true,
+      permisos: [],
+      grupos: []
+    });
   }
 
-  if (compId === VERIFICADOR_ID) {
-    return NextResponse.json({ compId: VERIFICADOR_ID, nombre: 'Verificador', isVerificador: true, isSuperAdmin: false, grupos: [] });
+  const user = await prisma.doxaUsuario.findUnique({
+    where: { id: compId },
+    include: { permisos: true }
+  });
+
+  if (!user || !user.activo) {
+    return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
   }
 
-  const comp = COMPONENTES.find(c => c.id === compId);
-  if (!comp) return NextResponse.json({ error: 'Componente no encontrado' }, { status: 404 });
-
-  return NextResponse.json({ compId: comp.id, nombre: comp.nombre, formId: comp.formId, grupos: comp.grupos, isSuperAdmin: false });
+  return NextResponse.json({
+    compId: user.id,
+    nombre: user.nombre,
+    email: user.email,
+    documento: user.documento,
+    permisos: user.permisos,
+    isSuperAdmin: false
+  });
 }

@@ -1,26 +1,29 @@
 import { NextResponse } from 'next/server';
 import { getSubmissions } from '@/lib/tally-api';
 import { prisma } from '@/lib/db';
-import { requireSession, AuthError } from '@/lib/session-helper';
-import { SUPER_ADMIN_ID } from '@/lib/auth';
+import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
+import { COMPONENTES } from '@/lib/componentes';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const currentUserId = await requireSession();
-    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
-
+    const session = await requireUserSession();
     const { id } = await params;
 
-    // Access control: Ensure coordinator owns this form
-    if (!isSuperAdmin) {
-      const tallyForm = await prisma.tallyFormulario.findUnique({
-        where: { tallyFormId: id }
-      });
-      if (!tallyForm || tallyForm.componenteId !== currentUserId) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-      }
+    // Resolve component from formId
+    const component = COMPONENTES.find(c => c.formId === id);
+    if (!component) {
+      return NextResponse.json({ error: 'Componente no válido' }, { status: 400 });
     }
+
+    // Verify permission on backend
+    const isAuthorized = await checkComponentPermission(session, component.id, 'puedeVer');
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    // Check if user has permission to synchronize backup
+    const canBackup = await checkComponentPermission(session, component.id, 'puedeSincronizarBackup');
 
     const data = await getSubmissions(id);
 
@@ -109,14 +112,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           return resp;
         });
         // Trigger automatic background sync/backup if snapshot is missing or has unsynced files
-        const existingSnapshot = snapshotMap.get(sub.id);
-        const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
-        const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
+        // and the user has 'puedeSincronizarBackup' permission.
+        if (canBackup) {
+          const existingSnapshot = snapshotMap.get(sub.id);
+          const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
+          const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
 
-        if (!existingSnapshot || hasUnsynced) {
-          syncSubmissionSnapshot(id, sub.id).catch((err) => {
-            console.error(`Automatic background backup failed for ${sub.id}:`, err);
-          });
+          if (!existingSnapshot || hasUnsynced) {
+            syncSubmissionSnapshot(id, sub.id).catch((err) => {
+              console.error(`Automatic background backup failed for ${sub.id}:`, err);
+            });
+          }
         }
 
         return { ...sub, responses };

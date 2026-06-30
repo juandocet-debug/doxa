@@ -250,3 +250,54 @@ model TallyDeletedSubmission {
   createdAt         DateTime @default(now())
 }
 
+model DoxaUsuario {
+  id             String   @id @default(cuid())
+  externalUserId String   @unique
+  nombre         String
+  email          String?
+  documento      String?
+  rolBase        String?
+  activo         Boolean  @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  permisos       DoxaPermisoComponente[]
+  auditorias     DoxaAuditoria[]
+}
+
+model DoxaPermisoComponente {
+  id                    String  @id @default(cuid())
+  usuarioId             String
+  componenteId           String
+
+  puedeVer               Boolean @default(false)
+  puedeAprobar           Boolean @default(false)
+  puedeDevolver          Boolean @default(false)
+  puedeReemplazar        Boolean @default(false)
+  puedeSincronizarBackup Boolean @default(false)
+  puedeExportar          Boolean @default(false)
+
+  usuario                DoxaUsuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, componenteId])
+  @@index([componenteId])
+}
+
+model DoxaAuditoria {
+  id                String   @id @default(cuid())
+  usuarioId         String?
+  accion            String
+  componenteId      String?
+  formId            String?
+  tallySubmissionId String?
+  clase             String?
+  grupo             String?
+  estadoAnterior    String?
+  estadoNuevo       String?
+  detalle           String?
+  createdAt         DateTime @default(now())
+
+  usuario           DoxaUsuario? @relation(fields: [usuarioId], references: [id])
+}
+

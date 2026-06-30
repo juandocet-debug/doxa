@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { prisma } from '@/lib/db';
-import { requireSession, AuthError } from '@/lib/session-helper';
-import { SUPER_ADMIN_ID } from '@/lib/auth';
+import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
+import { COMPONENTES } from '@/lib/componentes';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -25,9 +25,7 @@ function ext(name: string, mime: string) {
 
 export async function GET(req: Request) {
   try {
-    const currentUserId = await requireSession();
-    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
-    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
+    const session = await requireUserSession();
 
     const { searchParams } = new URL(req.url);
     const formId       = searchParams.get('formId');
@@ -38,14 +36,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Faltan parametros' }, { status: 400 });
     }
 
-    // Access control: Ensure coordinator owns this form
-    if (!hasGlobalRead) {
-      const tallyForm = await prisma.tallyFormulario.findUnique({
-        where: { tallyFormId: formId }
-      });
-      if (!tallyForm || tallyForm.componenteId !== currentUserId) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-      }
+    // Resolve component from formId
+    const component = COMPONENTES.find(c => c.formId === formId);
+    if (!component) {
+      return NextResponse.json({ error: 'Componente no válido' }, { status: 400 });
+    }
+
+    // Verify permission on backend
+    const isAuthorized = await checkComponentPermission(session, component.id, 'puedeExportar');
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }    // Obtener submissions con URLs frescas
     const res  = await fetch(`${API}/forms/${formId}/submissions?limit=500`, {
       headers: { Authorization: `Bearer ${KEY}` }, cache: 'no-store',
@@ -137,6 +137,16 @@ export async function GET(req: Request) {
     }
 
     const content = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+
+    // Write audit trail
+    await logAuditoria({
+      usuarioId: session.isSuperAdmin ? null : session.userId,
+      accion: 'EXPORTAR_ZIP',
+      componenteId: component.id,
+      formId,
+      tallySubmissionId: submissionId,
+      detalle: `Exportación de evidencias en formato ZIP: ${zipName}`
+    });
 
     return new Response(content.buffer as ArrayBuffer, {
       headers: {

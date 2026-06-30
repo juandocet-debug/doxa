@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
-import { requireSession, AuthError } from '@/lib/session-helper';
-import { SUPER_ADMIN_ID } from '@/lib/auth';
+import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
+import { DoxaPermisoComponente } from '@prisma/client';
 import { deleteFromCloudinary } from '@/lib/cloudinary';
 
 const API = process.env.TALLY_API_URL!;
@@ -85,9 +85,7 @@ function extractFiles(answer: unknown): TallyFile[] {
 
 export async function GET(req: Request) {
   try {
-    const currentUserId = await requireSession();
-    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
-    const hasGlobalRead = isSuperAdmin || currentUserId === 'verificador';
+    const session = await requireUserSession();
 
     const { searchParams } = new URL(req.url);
     const filterComponente = searchParams.get('componente');
@@ -96,12 +94,19 @@ export async function GET(req: Request) {
     const filterDesde = searchParams.get('desde');
     const filterHasta = searchParams.get('hasta');
 
-    // Access control: Non-superadmin is locked to their own component
-    const targetComponente = hasGlobalRead ? filterComponente : currentUserId;
+    let componentes = COMPONENTES;
+    if (filterComponente) {
+      componentes = COMPONENTES.filter((c) => c.id === filterComponente);
+    }
 
-    const componentes = targetComponente
-      ? COMPONENTES.filter((c) => c.id === targetComponente)
-      : COMPONENTES;
+    if (!session.isSuperAdmin && session.usuario) {
+      const permittedIds = new Set(
+        session.usuario.permisos
+          .filter((p: DoxaPermisoComponente) => p.puedeVer)
+          .map((p: DoxaPermisoComponente) => p.componenteId)
+      );
+      componentes = componentes.filter((c) => permittedIds.has(c.id));
+    }
 
     // 1. Fetch Tally submissions in parallel
     const fetchedResults = await Promise.all(
@@ -279,14 +284,18 @@ export async function GET(req: Request) {
         });
 
         // Trigger automatic background sync/backup if snapshot is missing or has unsynced files
-        const existingSnapshot = snapshotMap.get(sub.id);
-        const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
-        const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
+        // and the user has 'puedeSincronizarBackup' permission.
+        const canBackup = await checkComponentPermission(session, comp.id, 'puedeSincronizarBackup');
+        if (canBackup) {
+          const existingSnapshot = snapshotMap.get(sub.id);
+          const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
+          const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
 
-        if (!existingSnapshot || hasUnsynced) {
-          syncSubmissionSnapshot(comp.formId, sub.id).catch((err) => {
-            console.error(`Automatic background backup failed for ${sub.id}:`, err);
-          });
+          if (!existingSnapshot || hasUnsynced) {
+            syncSubmissionSnapshot(comp.formId, sub.id).catch((err) => {
+              console.error(`Automatic background backup failed for ${sub.id}:`, err);
+            });
+          }
         }
       }
     }
@@ -307,17 +316,39 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const currentUserId = await requireSession();
-    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
-    const hasWrite = isSuperAdmin || currentUserId === 'verificador';
-
-    if (!hasWrite) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
-
+    const session = await requireUserSession();
     const { searchParams } = new URL(req.url);
     const submissionId = searchParams.get('submissionId');
     const clase = searchParams.get('clase');
+
+    let targetComponentId: string | null = null;
+
+    if (submissionId) {
+      const snap = await prisma.tallySubmissionSnapshot.findUnique({
+        where: { tallySubmissionId: submissionId }
+      });
+      if (snap) {
+        targetComponentId = snap.componenteId;
+      }
+    } else if (clase) {
+      const snap = await prisma.tallySubmissionSnapshot.findFirst({
+        where: { clase }
+      });
+      if (snap) {
+        targetComponentId = snap.componenteId;
+      }
+    }
+
+    if (targetComponentId) {
+      const isAuthorized = await checkComponentPermission(session, targetComponentId, 'puedeAprobar');
+      if (!isAuthorized) {
+        return NextResponse.json({ error: 'No autorizado para eliminar en este componente' }, { status: 403 });
+      }
+    } else {
+      if (!session.isSuperAdmin) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    }
 
     if (submissionId) {
       // Record as permanently deleted
@@ -354,6 +385,15 @@ export async function DELETE(req: Request) {
       await prisma.evidenciaTallyReemplazo.deleteMany({
         where: { tallySubmissionId: submissionId }
       });
+
+      await logAuditoria({
+        usuarioId: session.isSuperAdmin ? null : session.userId,
+        accion: 'ELIMINAR_ENTREGA',
+        componenteId: targetComponentId,
+        tallySubmissionId: submissionId,
+        detalle: `Se eliminó la entrega ${submissionId} y sus archivos`
+      });
+
       return NextResponse.json({ success: true, message: `Entrega ${submissionId} y sus archivos en Cloudinary eliminados` });
     }
 
@@ -402,6 +442,15 @@ export async function DELETE(req: Request) {
       await prisma.evidenciaTallyReemplazo.deleteMany({
         where: { tallySubmissionId: { in: submissionIds } }
       });
+
+      await logAuditoria({
+        usuarioId: session.isSuperAdmin ? null : session.userId,
+        accion: 'ELIMINAR_CLASE',
+        componenteId: targetComponentId,
+        clase,
+        detalle: `Se eliminaron todas las entregas de la clase ${clase}`
+      });
+
       return NextResponse.json({ success: true, message: `Clase ${clase} y sus archivos en Cloudinary eliminados` });
     }
 
