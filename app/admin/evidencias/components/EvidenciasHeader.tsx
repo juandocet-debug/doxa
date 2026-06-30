@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { SessionComp } from '../types';
 
 interface EvidenciasHeaderProps {
@@ -89,7 +90,7 @@ export function EvidenciasHeader({
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {isSuperAdmin && (
-            <a href="/superadmin/usuarios" style={{ ...sBtn(), textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>⚙️ Configurar Permisos</a>
+            <Link href="/superadmin/usuarios" style={{ ...sBtn(), textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>⚙️ Configurar Permisos</Link>
           )}
           <button onClick={load} disabled={loading} style={sBtn()}>{loading ? '⟳' : '↻ Actualizar'}</button>
           <button onClick={handleLogout} style={{ ...sBtn(), color: C.errorText, borderColor: C.errorBorder }}>⎋ Cerrar sesión</button>
