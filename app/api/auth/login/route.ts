@@ -30,19 +30,43 @@ export async function POST(req: Request) {
   }
 
   try {
-    const icaroRes = await fetch(`${icaroUrl}/api/auth/login`, {
+    const icaroRes = await fetch(`${icaroUrl}/api/auth/token/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: compId, password })
+      body: JSON.stringify({ username: compId, password })
     });
 
     if (!icaroRes.ok) {
       const errData = await icaroRes.json().catch(() => ({}));
-      return NextResponse.json({ error: errData.error || 'Credenciales inválidas en Ágora/Icaro' }, { status: 401 });
+      return NextResponse.json({ error: errData.detail || 'Credenciales inválidas en Ágora/Icaro' }, { status: 401 });
     }
 
-    const icaroUser = await icaroRes.json();
-    const extId = String(icaroUser.id || icaroUser.externalUserId || icaroUser.email || compId);
+    const tokenData = await icaroRes.json() as { access: string };
+    
+    // Fetch profile info using token
+    const profileRes = await fetch(`${icaroUrl}/api/auth/perfil/`, {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!profileRes.ok) {
+      return NextResponse.json({ error: 'No se pudo obtener el perfil de Icaro' }, { status: 502 });
+    }
+
+    const profileBody = await profileRes.json() as { ok: boolean; datos: {
+      user_id: number;
+      username: string;
+      email?: string;
+      cedula?: string;
+      primer_nombre?: string;
+      primer_apellido?: string;
+    }};
+
+    const p = profileBody.datos;
+    const extId = String(p.user_id);
+    const nombre = [p.primer_nombre, p.primer_apellido].filter(Boolean).join(' ') || p.username;
 
     // Sync user locally in Neon
     let user = await prisma.doxaUsuario.findUnique({
@@ -53,10 +77,10 @@ export async function POST(req: Request) {
       user = await prisma.doxaUsuario.create({
         data: {
           externalUserId: extId,
-          nombre: icaroUser.nombre || icaroUser.nombreCompleto || icaroUser.name || compId,
-          email: icaroUser.email || null,
-          documento: icaroUser.documento || null,
-          rolBase: icaroUser.rolBase || icaroUser.rol || 'usuario',
+          nombre,
+          email: p.email || null,
+          documento: p.cedula || p.username || null,
+          rolBase: 'usuario',
           activo: true
         }
       });
@@ -64,10 +88,9 @@ export async function POST(req: Request) {
       user = await prisma.doxaUsuario.update({
         where: { id: user.id },
         data: {
-          nombre: icaroUser.nombre || icaroUser.nombreCompleto || icaroUser.name || user.nombre,
-          email: icaroUser.email || user.email,
-          documento: icaroUser.documento || user.documento,
-          rolBase: icaroUser.rolBase || icaroUser.rol || user.rolBase,
+          nombre,
+          email: p.email || user.email,
+          documento: p.cedula || p.username || user.documento,
           lastSyncedAt: new Date()
         }
       });
