@@ -45,3 +45,4 @@ yarn-error.log*
 /lib/generated/prisma
 
 .vercel
+.env*.local
