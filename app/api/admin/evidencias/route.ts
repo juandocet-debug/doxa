@@ -175,6 +175,10 @@ export async function DELETE(req: Request) {
     const submissionId = searchParams.get('submissionId');
     const clase = searchParams.get('clase');
 
+    if (clase && !session.isSuperAdmin) {
+      return NextResponse.json({ error: 'Solo el superadmin puede eliminar clases completas' }, { status: 403 });
+    }
+
     let targetComponentId: string | null = null;
     let formIdToInvalidate: string | null = null;
 

@@ -225,7 +225,7 @@ export default function AdminEvidenciasPage() {
                     <FolderCard
                       key={sub.submissionId}
                       sub={sub}
-                      puedeAprobar={puedeAprobar}
+                      isSuperAdmin={isSuperAdmin}
                       handleDeleteClass={handleDeleteClass}
                       setFilterClase={setFilterClase}
                       zipName={zipName}

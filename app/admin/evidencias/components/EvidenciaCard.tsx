@@ -4,7 +4,7 @@ import { ICONS } from './Icons';
 
 interface FolderCardProps {
   sub: SubmisionEvidencia;
-  puedeAprobar: boolean;
+  isSuperAdmin: boolean;
   handleDeleteClass: (clase: string) => void;
   setFilterClase: (clase: string) => void;
   zipName: string;
@@ -13,7 +13,7 @@ interface FolderCardProps {
 
 export function FolderCard({
   sub,
-  puedeAprobar,
+  isSuperAdmin,
   handleDeleteClass,
   setFilterClase,
   zipName,
@@ -33,7 +33,7 @@ export function FolderCard({
 
   return (
     <div className="folder-card" style={{ position: 'relative', paddingTop: 20, cursor: 'pointer' }} onClick={() => setFilterClase(sub.clase)}>
-      {puedeAprobar && (
+      {isSuperAdmin && (
         <button
           onClick={(e) => {
             e.stopPropagation();
