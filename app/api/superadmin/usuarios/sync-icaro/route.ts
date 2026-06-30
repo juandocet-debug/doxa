@@ -16,7 +16,7 @@ export async function POST() {
       );
     }
 
-    const res = await fetch(`${icaroUrl}/api/users`, {
+    const res = await fetch(`${icaroUrl}/api/auth/usuarios/`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${icaroToken}`,
@@ -30,14 +30,15 @@ export async function POST() {
       return NextResponse.json({ error: 'Error al consultar usuarios desde Icaro' }, { status: 502 });
     }
 
-    const icaroUsers = await res.json() as Array<{
+    const body = await res.json() as { ok: boolean; datos?: Array<{
       id: string | number;
-      nombre: string;
+      username: string;
       email?: string;
-      documento?: string;
+      nombre_completo: string;
       rolBase?: string;
-    }>;
+    }> };
 
+    const icaroUsers = body.datos || [];
     let syncedCount = 0;
     const now = new Date();
 
@@ -46,17 +47,17 @@ export async function POST() {
       await prisma.doxaUsuario.upsert({
         where: { externalUserId: extId },
         update: {
-          nombre: item.nombre,
+          nombre: item.nombre_completo || item.username,
           email: item.email || null,
-          documento: item.documento || null,
+          documento: item.username || null,
           rolBase: item.rolBase || 'usuario',
           lastSyncedAt: now,
         },
         create: {
           externalUserId: extId,
-          nombre: item.nombre,
+          nombre: item.nombre_completo || item.username,
           email: item.email || null,
-          documento: item.documento || null,
+          documento: item.username || null,
           rolBase: item.rolBase || 'usuario',
           lastSyncedAt: now,
           activo: true,
