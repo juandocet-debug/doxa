@@ -4,6 +4,7 @@ import { COMPONENTES } from '@/lib/componentes';
 import { requireSession, AuthError } from '@/lib/session-helper';
 import { SUPER_ADMIN_ID } from '@/lib/auth';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
+import { deleteFromCloudinary } from '@/lib/cloudinary';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -326,6 +327,24 @@ export async function DELETE(req: Request) {
         create: { tallySubmissionId: submissionId }
       });
 
+      // Gather files & replacements to delete from Cloudinary
+      const fileSnaps = await prisma.tallyArchivoSnapshot.findMany({
+        where: { tallySubmissionId: submissionId },
+        select: { cloudinaryPublicId: true }
+      });
+      const replacements = await prisma.evidenciaTallyReemplazo.findMany({
+        where: { tallySubmissionId: submissionId },
+        select: { replacementPublicId: true }
+      });
+
+      const publicIds = [
+        ...fileSnaps.map(f => f.cloudinaryPublicId),
+        ...replacements.map(r => r.replacementPublicId)
+      ].filter((id): id is string => !!id);
+
+      // Async Cloudinary cleanup
+      await Promise.all(publicIds.map(id => deleteFromCloudinary(id).catch(err => console.error('Cloudinary destroy err:', err))));
+
       await prisma.tallySubmissionSnapshot.deleteMany({
         where: { tallySubmissionId: submissionId }
       });
@@ -335,7 +354,7 @@ export async function DELETE(req: Request) {
       await prisma.evidenciaTallyReemplazo.deleteMany({
         where: { tallySubmissionId: submissionId }
       });
-      return NextResponse.json({ success: true, message: `Entrega ${submissionId} eliminada` });
+      return NextResponse.json({ success: true, message: `Entrega ${submissionId} y sus archivos en Cloudinary eliminados` });
     }
 
     if (clase) {
@@ -356,6 +375,24 @@ export async function DELETE(req: Request) {
         )
       );
 
+      // Gather files & replacements to delete from Cloudinary
+      const fileSnaps = await prisma.tallyArchivoSnapshot.findMany({
+        where: { tallySubmissionId: { in: submissionIds } },
+        select: { cloudinaryPublicId: true }
+      });
+      const replacements = await prisma.evidenciaTallyReemplazo.findMany({
+        where: { tallySubmissionId: { in: submissionIds } },
+        select: { replacementPublicId: true }
+      });
+
+      const publicIds = [
+        ...fileSnaps.map(f => f.cloudinaryPublicId),
+        ...replacements.map(r => r.replacementPublicId)
+      ].filter((id): id is string => !!id);
+
+      // Async Cloudinary cleanup
+      await Promise.all(publicIds.map(id => deleteFromCloudinary(id).catch(err => console.error('Cloudinary destroy err:', err))));
+
       await prisma.tallySubmissionSnapshot.deleteMany({
         where: { clase }
       });
@@ -365,7 +402,7 @@ export async function DELETE(req: Request) {
       await prisma.evidenciaTallyReemplazo.deleteMany({
         where: { tallySubmissionId: { in: submissionIds } }
       });
-      return NextResponse.json({ success: true, message: `Clase ${clase} eliminada` });
+      return NextResponse.json({ success: true, message: `Clase ${clase} y sus archivos en Cloudinary eliminados` });
     }
 
     return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
