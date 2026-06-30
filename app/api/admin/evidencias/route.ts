@@ -294,3 +294,59 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const currentUserId = await requireSession();
+    const isSuperAdmin = currentUserId === SUPER_ADMIN_ID;
+    const hasWrite = isSuperAdmin || currentUserId === 'verificador';
+
+    if (!hasWrite) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const submissionId = searchParams.get('submissionId');
+    const clase = searchParams.get('clase');
+
+    if (submissionId) {
+      await prisma.tallySubmissionSnapshot.deleteMany({
+        where: { tallySubmissionId: submissionId }
+      });
+      await prisma.aprobacionTally.deleteMany({
+        where: { tallySubmissionId: submissionId }
+      });
+      await prisma.evidenciaTallyReemplazo.deleteMany({
+        where: { tallySubmissionId: submissionId }
+      });
+      return NextResponse.json({ success: true, message: `Entrega ${submissionId} eliminada` });
+    }
+
+    if (clase) {
+      const snapshots = await prisma.tallySubmissionSnapshot.findMany({
+        where: { clase },
+        select: { tallySubmissionId: true }
+      });
+      const submissionIds = snapshots.map(s => s.tallySubmissionId);
+
+      await prisma.tallySubmissionSnapshot.deleteMany({
+        where: { clase }
+      });
+      await prisma.aprobacionTally.deleteMany({
+        where: { tallySubmissionId: { in: submissionIds } }
+      });
+      await prisma.evidenciaTallyReemplazo.deleteMany({
+        where: { tallySubmissionId: { in: submissionIds } }
+      });
+      return NextResponse.json({ success: true, message: `Clase ${clase} eliminada` });
+    }
+
+    return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
+  } catch (e: unknown) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    const msg = e instanceof Error ? e.message : 'Error desconocido';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

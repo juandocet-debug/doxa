@@ -157,6 +157,14 @@ const ICONS = {
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
       <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
+  ),
+  Trash: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
   )
 };
 
@@ -291,6 +299,42 @@ export default function AdminEvidenciasPage() {
       alert(errorMsg);
     } finally {
       setSyncingBackup(null);
+    }
+  }
+
+  async function handleDeleteSubmission(submissionId: string) {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta entrega de evidencias? Esta acción eliminará los metadatos y respaldos.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/evidencias?submissionId=${submissionId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar la entrega');
+      setPreview(null);
+      load();
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : 'Error al eliminar';
+      alert(errorMsg);
+    }
+  }
+
+  async function handleDeleteClass(clase: string) {
+    if (!confirm(`¿Estás seguro de que deseas eliminar la clase "${clase}"? Se eliminarán TODAS las entregas y evidencias de esta clase.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/evidencias?clase=${encodeURIComponent(clase)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar la clase');
+      setFilterClase('');
+      load();
+    } catch (e: unknown) {
+      const errorMsg = e instanceof Error ? e.message : 'Error al eliminar la clase';
+      alert(errorMsg);
     }
   }
 
@@ -616,6 +660,28 @@ export default function AdminEvidenciasPage() {
                     style={{ position: 'relative', paddingTop: 20, cursor: 'pointer' }}
                     onClick={() => setFilterClase(sub.clase)}>
 
+                    {/* Trash Button to delete class */}
+                    {!isReadOnly && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClass(sub.clase);
+                        }}
+                        title="Eliminar todos los datos de esta clase"
+                        style={{
+                          position: 'absolute', top: 30, right: 10,
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#F87171', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', transition: 'all 0.15s', zIndex: 10
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#EF4444'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#F87171'; }}
+                      >
+                        <ICONS.Trash size={12} />
+                      </button>
+                    )}
+
                     {/* Pestaña de carpeta */}
                     <div style={{
                       position: 'absolute', top: 0, left: 18,
@@ -797,6 +863,19 @@ export default function AdminEvidenciasPage() {
                       }}
                     >
                       <ICONS.Sync size={13} /> Sincronizar
+                    </button>
+
+                    <button 
+                      onClick={() => handleDeleteSubmission(sub.submissionId)} 
+                      style={{ 
+                        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, 
+                        background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, 
+                        fontSize: '0.75rem', cursor: 'pointer', transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#EF4444'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#F87171'; }}
+                    >
+                      <ICONS.Trash size={13} /> Eliminar
                     </button>
 
                     <button onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
