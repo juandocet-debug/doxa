@@ -38,6 +38,96 @@ interface Preview {
   label: string;
 }
 
+const ICONS = {
+  Folder: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#FBBF24' }}>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="currentColor"/>
+    </svg>
+  ),
+  Calendar: ({ size = 12 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  ),
+  File: ({ size = 12 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  ),
+  Download: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
+  Eye: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  Shield: ({ size = 13, filled = false }: { size?: number; filled?: boolean }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  ),
+  Sync: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  ),
+  Back: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  ),
+  Cloud: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" fill="currentColor" />
+    </svg>
+  ),
+  Hourglass: ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M5 2h14" />
+      <path d="M5 22h14" />
+      <path d="M19 2v4c0 1.38-1.13 2.5-2.5 2.5S14 7.38 14 6V2" />
+      <path d="M12 12c-1.38 0-2.5-1.13-2.5-2.5S10.63 7 12 7" />
+      <path d="M12 12c1.38 0 2.5 1.13 2.5 2.5S13.38 17 12 17" />
+      <path d="M5 22v-4c0-1.38 1.13-2.5 2.5-2.5S10 16.62 10 18v4" />
+    </svg>
+  ),
+  Zip: ({ size = 13 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
+  Lock: ({ size = 10 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  ),
+  Note: ({ size = 12 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  )
+};
+
 const C = {
   bg:            'linear-gradient(135deg, #020604 0%, #06110a 52%, #0b2214 100%)',
   surface:       'rgba(4,10,6,0.92)',
@@ -609,19 +699,19 @@ export default function AdminEvidenciasPage() {
                     <div style={{ 
                       width: 44, height: 44, borderRadius: '50%', 
                       background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem'
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
-                      📁
+                      <ICONS.Folder />
                     </div>
                     <div>
                       <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', margin: 0 }}>{sub.clase}</h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, fontSize: '0.72rem', color: C.textMuted }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          📅 {new Date(sub.fechaEnvio).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <ICONS.Calendar size={12} /> {new Date(sub.fechaEnvio).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <span>·</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          📄 {totalArchivos} archivo{totalArchivos !== 1 ? 's' : ''}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <ICONS.File size={12} /> {totalArchivos} archivo{totalArchivos !== 1 ? 's' : ''}
                         </span>
                       </div>
                     </div>
@@ -635,56 +725,58 @@ export default function AdminEvidenciasPage() {
                       border: '1px solid #10B981', background: 'rgba(16,185,129,0.06)',
                       color: '#10B981', fontSize: '0.72rem', fontWeight: 700
                     }}>
-                      🛡️ Estado del respaldo
+                      <ICONS.Shield size={13} filled={true} /> Estado del respaldo
                     </div>
 
                     <a
                       href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`}
                       download={`${zipName}.zip`}
                       style={{ 
-                        display:'inline-flex', alignItems:'center', gap:5, padding:'0 14px', minHeight:34, borderRadius:8, 
+                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
                         background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none', transition: 'all 0.2s' 
                       }}
                       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
                       onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                     >
-                      📥 ZIP
+                      <ICONS.Zip size={13} /> ZIP
                     </a>
 
                     <button
                       onClick={() => handleUploadToDrive(sub)}
                       disabled={uploadingDrive === sub.submissionId}
                       style={{ 
-                        display:'inline-flex', alignItems:'center', gap:5, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', 
+                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', 
                         background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', 
                         opacity: uploadingDrive === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s'
                       }}
                       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
                       onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                     >
-                      {uploadingDrive === sub.submissionId ? '📤 Subiendo...' : '☁️ Drive'}
+                      <ICONS.Cloud size={13} /> Drive
                     </button>
 
                     <button
                       onClick={() => handleSyncBackup(sub)}
                       disabled={syncingBackup === sub.submissionId}
                       style={{ 
-                        display:'inline-flex', alignItems:'center', gap:5, padding:'0 14px', minHeight:34, borderRadius:8, 
+                        display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, 
                         background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, 
                         fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1, transition: 'all 0.2s' 
                       }}
                     >
-                      {syncingBackup === sub.submissionId ? '🔄 Sincronizando...' : '🔄 Sincronizar'}
+                      <ICONS.Sync size={13} /> Sincronizar
                     </button>
 
-                    <button onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem' }}>← Volver</button>
+                    <button onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <ICONS.Back size={13} /> Volver
+                    </button>
                   </div>
                 </div>
 
                 {/* Subtitle / Note if present */}
                 {sub.notas && (
-                  <div style={{ background: 'rgba(216,200,246,0.06)', border: '1px solid rgba(216,200,246,0.12)', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: '#D8C8F6' }}>
-                    📝 <strong>Observación:</strong> {sub.notas}
+                  <div style={{ background: 'rgba(216,200,246,0.06)', border: '1px solid rgba(216,200,246,0.12)', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: '#D8C8F6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ICONS.Note size={14} /> <strong>Observación:</strong> {sub.notas}
                   </div>
                 )}
 
@@ -748,8 +840,8 @@ export default function AdminEvidenciasPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={archivo.url} alt={archivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
-                              📄
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
+                              <ICONS.File size={40} />
                             </div>
                           )}
 
@@ -798,7 +890,7 @@ export default function AdminEvidenciasPage() {
                             onMouseEnter={(e) => { e.currentTarget.style.background = C.lime; e.currentTarget.style.color = '#130620'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15,23,42,0.85)'; e.currentTarget.style.color = C.lime; }}
                           >
-                            🔄
+                            <ICONS.Sync size={12} />
                           </button>
                         </div>
 
@@ -826,7 +918,7 @@ export default function AdminEvidenciasPage() {
 
                           {/* Date and Size */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted }}>
-                            <span>📅 {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
                             <span>|</span>
                             <span>💾 {sizeMB}</span>
                           </div>
@@ -850,9 +942,10 @@ export default function AdminEvidenciasPage() {
                               <span style={{ 
                                 display: 'inline-flex', padding: '2px 8px', borderRadius: 4,
                                 background: 'rgba(59,130,246,0.1)', color: '#60A5FA',
-                                fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)'
+                                fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)',
+                                alignItems: 'center', gap: 4
                               }}>
-                                ☁️ Respaldado
+                                <ICONS.Cloud size={11} /> Respaldado
                               </span>
                             ) : archivo.syncStatus === 'failed' ? (
                               <span 
@@ -860,18 +953,20 @@ export default function AdminEvidenciasPage() {
                                 style={{ 
                                   display: 'inline-flex', padding: '2px 8px', borderRadius: 4,
                                   background: 'rgba(239,68,68,0.1)', color: '#F87171',
-                                  fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)'
+                                  fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)',
+                                  alignItems: 'center', gap: 4
                                 }}
                               >
-                                ⚠️ Falla backup
+                                <ICONS.Shield size={11} /> Falla backup
                               </span>
                             ) : (
                               <span style={{ 
                                 display: 'inline-flex', padding: '2px 8px', borderRadius: 4,
                                 background: 'rgba(245,158,11,0.1)', color: '#FBBF24',
-                                fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)'
+                                fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)',
+                                alignItems: 'center', gap: 4
                               }}>
-                                ⏳ Backup pend.
+                                <ICONS.Hourglass size={11} /> Backup pend.
                               </span>
                             )}
                           </div>
@@ -883,7 +978,7 @@ export default function AdminEvidenciasPage() {
                             href={`/api/admin/proxy?url=${encodeURIComponent(archivo.url)}&name=${encodeURIComponent(archivo.name)}`}
                             download={archivo.name}
                             style={{ 
-                              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                               padding: '6px 10px', borderRadius: 6, background: archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
                               color: archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA', fontSize: '0.72rem', fontWeight: 700,
                               textDecoration: 'none', transition: 'all 0.2s', textAlign: 'center'
@@ -891,13 +986,13 @@ export default function AdminEvidenciasPage() {
                             onMouseEnter={e => { e.currentTarget.style.background = archivo.syncStatus === 'synced' ? '#10B981' : '#3B82F6'; e.currentTarget.style.color = '#fff'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)'; e.currentTarget.style.color = archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA'; }}
                           >
-                            📥 Descargar
+                            <ICONS.Download size={13} /> Descargar
                           </a>
                           
                           <button
-                            onClick={() => openPreview(sub, archivo, archivo.label)}
+                            onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.url, name: archivo.name, label: archivo.label })}
                             style={{ 
-                              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                               padding: '6px 10px', borderRadius: 6, background: 'transparent',
                               border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: '0.72rem', fontWeight: 600,
                               cursor: 'pointer', transition: 'all 0.2s'
@@ -905,7 +1000,7 @@ export default function AdminEvidenciasPage() {
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            👁️ Revisar
+                            <ICONS.Eye size={13} /> Revisar
                           </button>
                         </div>
 
@@ -915,10 +1010,14 @@ export default function AdminEvidenciasPage() {
                           fontSize: '0.62rem', color: C.textMuted, borderTop: '1px solid rgba(255,255,255,0.04)', 
                           marginTop: 2, paddingTop: 6 
                         }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            {archivo.syncStatus === 'synced' ? '🛡️ Respaldo al día' : '⏳ Auto-respaldo activo'}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {archivo.syncStatus === 'synced' ? (
+                              <><ICONS.Shield size={11} filled={true} /> Respaldo al día</>
+                            ) : (
+                              <><ICONS.Calendar size={11} /> Auto-respaldo activo</>
+                            )}
                           </span>
-                          <span>🔒</span>
+                          <ICONS.Lock size={10} />
                         </div>
                       </div>
                     );
@@ -938,7 +1037,9 @@ export default function AdminEvidenciasPage() {
                       borderRadius: 12, padding: '16px 24px', marginTop: 24, gap: 16
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: '1.8rem' }}>📄</span>
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                          <ICONS.File size={18} />
+                        </div>
                         <div>
                           <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>{totalArchivos} archivos</p>
                           <p style={{ margin: 0, fontSize: '0.72rem', color: C.textMuted }}>En esta clase</p>
@@ -946,7 +1047,9 @@ export default function AdminEvidenciasPage() {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: '1.8rem', color: '#10B981' }}>🛡️</span>
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(16,185,129,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10B981' }}>
+                          <ICONS.Shield size={18} filled={true} />
+                        </div>
                         <div>
                           <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>{syncedCount} respaldo{syncedCount !== 1 ? 's' : ''} al día</p>
                           <p style={{ margin: 0, fontSize: '0.72rem', color: C.textMuted }}>Todo respaldado</p>
@@ -954,7 +1057,9 @@ export default function AdminEvidenciasPage() {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: '1.8rem', color: '#FBBF24' }}>⏳</span>
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(245,158,11,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FBBF24' }}>
+                          <ICONS.Hourglass size={18} />
+                        </div>
                         <div>
                           <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#fff' }}>{pendingCount} respaldo{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}</p>
                           <p style={{ margin: 0, fontSize: '0.72rem', color: C.textMuted }}>Programados hoy</p>
