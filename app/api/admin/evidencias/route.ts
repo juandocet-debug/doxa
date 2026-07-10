@@ -89,21 +89,23 @@ export async function GET(req: Request) {
       const { comp } = result;
       const { questions, submissions } = result.data;
 
-      const grupoQ = questions.find(
+      const grupoQs = questions.filter(
         (q) => q.title?.toLowerCase().includes('grupo') || q.title?.toLowerCase().includes('selecciona')
       );
-      const claseQ = questions.find(
+      const claseQs = questions.filter(
         (q) => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número')
       );
 
       for (const sub of submissions) {
         if (deletedSubIdsSet.has(sub.id)) continue;
 
-        const getResp = (qId: string) =>
-          sub.responses.find((r) => r.questionId === qId)?.answer;
+        const getResp = (qIds: string[]) => {
+          const resp = sub.responses.find((r) => qIds.includes(r.questionId));
+          return resp ? resp.answer : undefined;
+        };
 
-        const grupo = grupoQ ? extractAnswer(getResp(grupoQ.id)) : '';
-        const clase = claseQ ? extractAnswer(getResp(claseQ.id)) : '';
+        const grupo = grupoQs.length > 0 ? extractAnswer(getResp(grupoQs.map(q => q.id))) : '';
+        const clase = claseQs.length > 0 ? extractAnswer(getResp(claseQs.map(q => q.id))) : '';
         const fechaEnvio = sub.submittedAt ?? sub.createdAt;
         const aprobacion = aprobMap.get(sub.id);
         const estado = (aprobacion?.estado as 'pendiente' | 'aprobada' | 'rechazada') ?? 'pendiente';
@@ -174,12 +176,13 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const submissionId = searchParams.get('submissionId');
     const clase = searchParams.get('clase');
+    const componenteParam = searchParams.get('componente');
 
     if (clase && !session.isSuperAdmin) {
       return NextResponse.json({ error: 'Solo el superadmin puede eliminar clases completas' }, { status: 403 });
     }
 
-    let targetComponentId: string | null = null;
+    let targetComponentId: string | null = componenteParam || null;
     let formIdToInvalidate: string | null = null;
 
     if (submissionId) {
@@ -192,7 +195,10 @@ export async function DELETE(req: Request) {
       }
     } else if (clase) {
       const snap = await prisma.tallySubmissionSnapshot.findFirst({
-        where: { clase }
+        where: { 
+          clase,
+          ...(componenteParam ? { componenteId: componenteParam } : {})
+        }
       });
       if (snap) {
         targetComponentId = snap.componenteId;

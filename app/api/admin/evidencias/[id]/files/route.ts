@@ -56,7 +56,20 @@ export async function GET(
     }
 
     const { questions } = tallyData;
-    const fotoQs = questions.filter((q) => q.type === 'FILE_UPLOAD');
+
+    // Gather all files directly from submission responses (bulletproof mapping)
+    const filesGroupMap = new Map<string, TallyFile[]>();
+    for (const resp of sub.responses) {
+      const files = extractFiles(resp.answer);
+      if (files.length > 0) {
+        const q = questions.find((q) => q.id === resp.questionId);
+        const label = q ? (q.title ?? 'Archivo adjunto') : 'Archivo adjunto';
+        if (!filesGroupMap.has(label)) {
+          filesGroupMap.set(label, []);
+        }
+        filesGroupMap.get(label)!.push(...files);
+      }
+    }
 
     const [replacements, archives] = await Promise.all([
       prisma.evidenciaTallyReemplazo.findMany({
@@ -77,11 +90,7 @@ export async function GET(
       archiveMap.set(cleanUrl(a.tallyFileUrl), a);
     }
 
-    const getResp = (qId: string) =>
-      sub.responses.find((r) => r.questionId === qId)?.answer;
-
-    const fotos = fotoQs.map((q) => {
-      const files = extractFiles(getResp(q.id));
+    const fotos = Array.from(filesGroupMap.entries()).map(([label, files]) => {
       const archivos = files.map((file) => {
         const fileClean = cleanUrl(file.url);
         const repl = replacementMap.get(fileClean);
@@ -142,7 +151,7 @@ export async function GET(
       });
 
       return {
-        label: q.title ?? q.id,
+        label,
         archivos,
       };
     });
