@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit/js/pdfkit.standalone.js';
 import { requireSession, AuthError } from '@/lib/session-helper';
 import { SUPER_ADMIN_ID } from '@/lib/auth';
 

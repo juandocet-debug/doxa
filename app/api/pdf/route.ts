@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit/js/pdfkit.standalone.js';
 import { requireSession, AuthError } from '@/lib/session-helper';
 
 interface TallyQuestion {
@@ -140,4 +140,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error desconocido' }, { status: 500 });
   }
 }
-

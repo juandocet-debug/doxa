@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit/js/pdfkit.standalone.js';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
 import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
