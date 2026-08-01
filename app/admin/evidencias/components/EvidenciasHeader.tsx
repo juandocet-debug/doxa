@@ -25,7 +25,7 @@ export function EvidenciasHeader({
   sBtn,
   C,
 }: EvidenciasHeaderProps) {
-  const roleLabel = isSuperAdmin ? 'Administrador' : isReadOnly ? 'Acceso de Consulta' : 'Panel de Coordinador';
+  const roleLabel = isSuperAdmin ? 'Administrador' : session?.isSuperCoordinador ? 'Super Coordinador' : isReadOnly ? 'Acceso de Consulta' : 'Panel de Coordinador';
 
   return (
     <header style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '14px 24px', flexShrink: 0 }}>

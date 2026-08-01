@@ -3,6 +3,8 @@ import JSZip from 'jszip';
 import { prisma } from '@/lib/db';
 import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
 import { COMPONENTES } from '@/lib/componentes';
+import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
+import { syncSubmissionSnapshot } from '@/lib/sync-service';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -46,7 +48,11 @@ export async function GET(req: Request) {
     const isAuthorized = await checkComponentPermission(session, component.id, 'puedeExportar');
     if (!isAuthorized) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }    // Obtener submissions con URLs frescas
+    }
+
+    const canSyncBackup = await checkComponentPermission(session, component.id, 'puedeSincronizarBackup');
+
+    // Obtener submissions con URLs frescas
     const res  = await fetch(`${API}/forms/${formId}/submissions?limit=500`, {
       headers: { Authorization: `Bearer ${KEY}` }, cache: 'no-store',
     });
@@ -61,7 +67,15 @@ export async function GET(req: Request) {
 
     if (!sub) return NextResponse.json({ error: 'Envío no encontrado' }, { status: 404 });
 
-        const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
+    if (canSyncBackup) {
+      try {
+        await syncSubmissionSnapshot(formId, submissionId);
+      } catch (backupError) {
+        console.error('No se pudo sincronizar respaldo antes de exportar:', backupError);
+      }
+    }
+
+    const fileGroups = getSubmissionFileGroups(sub.responses, questions);
 
     const cleanUrl = (u: string) => {
       try {
@@ -79,15 +93,18 @@ export async function GET(req: Request) {
       },
     });
     const replacementMap = new Map<string, typeof replacements[0]>();
+    const legacyReplacementMap = new Map<string, typeof replacements[0]>();
+    const replacementKey = (questionId: string | null | undefined, url: string) => `${questionId ?? ''}::${cleanUrl(url)}`;
     for (const r of replacements) {
-      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      if (r.questionId) {
+        replacementMap.set(replacementKey(r.questionId, r.tallyFileUrl), r);
+      } else {
+        legacyReplacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      }
     }
 
     const archives = await prisma.tallyArchivoSnapshot.findMany({
-      where: {
-        tallySubmissionId: submissionId,
-        syncStatus: 'synced'
-      }
+      where: { tallySubmissionId: submissionId }
     });
     const archiveMap = new Map<string, typeof archives[0]>();
     for (const a of archives) {
@@ -95,26 +112,36 @@ export async function GET(req: Request) {
     }
 
     const downloadQueue: { qTitle: string; file: { url: string; name: string; mimeType: string } }[] = [];
-    for (const q of fotoQs) {
-      const resp = sub.responses.find(r => r.questionId === q.id);
-      const files = Array.isArray(resp?.answer) ? resp.answer as { url: string; name: string; mimeType: string }[] : [];
-      for (const file of files) {
+    for (const group of fileGroups) {
+      for (const file of group.archivos) {
         const fileClean = cleanUrl(file.url);
-        const repl = replacementMap.get(fileClean);
+        const repl = replacementMap.get(replacementKey(group.questionId, file.url)) ?? (!group.questionId ? legacyReplacementMap.get(fileClean) : undefined);
         const arch = archiveMap.get(fileClean);
+        if (arch?.syncStatus === 'deleted') continue;
 
         const resolvedFile = repl ? {
           url: repl.replacementUrl,
           name: repl.replacementName || file.name,
           mimeType: repl.replacementMime || file.mimeType
-        } : (arch && arch.cloudinaryUrl ? {
+        } : (arch && arch.syncStatus === 'synced' && arch.cloudinaryUrl ? {
           url: arch.cloudinaryUrl,
           name: arch.tallyFileName || file.name,
           mimeType: arch.cloudinaryMime || file.mimeType
         } : file);
 
-        downloadQueue.push({ qTitle: q.title, file: resolvedFile });
+        downloadQueue.push({ qTitle: group.label, file: resolvedFile });
       }
+    }
+
+    for (const item of archives.filter(a => a.syncStatus === 'synced' && a.tallyFileUrl.startsWith('manual://') && a.cloudinaryUrl)) {
+      downloadQueue.push({
+        qTitle: item.questionLabel || 'Lista de asistencia manual',
+        file: {
+          url: item.cloudinaryUrl || '',
+          name: item.tallyFileName || 'evidencia-manual',
+          mimeType: item.cloudinaryMime || item.tallyMime || 'application/octet-stream',
+        },
+      });
     }
 
     const downloadedFiles = await Promise.allSettled(

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
 import { COMPONENTES } from '@/lib/componentes';
+import { hasMissingOrUnsyncedFiles } from '@/lib/evidencias/file-groups';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -44,8 +45,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       }
     });
     const replacementMap = new Map<string, typeof replacements[0]>();
+    const legacyReplacementMap = new Map<string, typeof replacements[0]>();
+    const replacementKey = (questionId: string | null | undefined, url: string) => `${questionId ?? ''}::${cleanUrl(url)}`;
     for (const r of replacements) {
-      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      if (r.questionId) {
+        replacementMap.set(replacementKey(r.questionId, r.tallyFileUrl), r);
+      } else {
+        legacyReplacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      }
     }
 
     // Query snapshots for this form
@@ -78,7 +85,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
               if (file && typeof file === 'object' && 'url' in file) {
                 const f = file as { url: string; name?: string; mimeType?: string; size?: number };
                 const fileClean = cleanUrl(f.url);
-                const repl = replacementMap.get(fileClean);
+                const repl = replacementMap.get(replacementKey(resp.questionId, f.url)) ?? (!resp.questionId ? legacyReplacementMap.get(fileClean) : undefined);
                 if (repl) {
                   return {
                     ...f,
@@ -116,7 +123,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         if (canBackup) {
           const existingSnapshot = snapshotMap.get(sub.id);
           const subFiles = archives.filter((a) => a.tallySubmissionId === sub.id);
-          const hasUnsynced = subFiles.length === 0 || subFiles.some((f) => f.syncStatus !== 'synced');
+          const hasUnsynced = hasMissingOrUnsyncedFiles(sub.responses, data.questions, subFiles);
 
           if (!existingSnapshot || hasUnsynced) {
             syncSubmissionSnapshot(id, sub.id).catch((err) => {

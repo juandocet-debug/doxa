@@ -199,6 +199,7 @@ model TallySubmissionSnapshot {
   grupo             String?
   clase             String?
   fechaEnvio        DateTime?
+  fechaActividadReal DateTime?
   rawJson           Json?
   syncedAt          DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -210,6 +211,7 @@ model TallySubmissionSnapshot {
   @@index([grupo])
   @@index([clase])
   @@index([fechaEnvio])
+  @@index([fechaActividadReal])
 }
 
 model TallyArchivoSnapshot {
@@ -233,6 +235,10 @@ model TallyArchivoSnapshot {
   syncStatus        String   @default("pending") // pending | synced | failed
   syncError         String?  @db.Text
   syncedAt          DateTime?
+  estadoRevision    String   @default("pendiente")
+  observacionRevision String? @db.Text
+  revisadoPor       String?
+  revisadoAt        DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -259,6 +265,8 @@ model DoxaUsuario {
   rolBase        String?
   fotoUrl        String?
   activo         Boolean  @default(true)
+  esSuperCoordinador Boolean @default(false)
+  puedeEliminarClases Boolean @default(false)
   lastSyncedAt   DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -276,6 +284,8 @@ model DoxaPermisoComponente {
   puedeAprobar           Boolean @default(false)
   puedeDevolver          Boolean @default(false)
   puedeReemplazar        Boolean @default(false)
+  puedeEliminarEvidencia Boolean @default(false)
+  puedeRevisarEvidencia  Boolean @default(false)
   puedeSincronizarBackup Boolean @default(false)
   puedeExportar          Boolean @default(false)
 
@@ -301,4 +311,3 @@ model DoxaAuditoria {
 
   usuario           DoxaUsuario? @relation(fields: [usuarioId], references: [id])
 }
-

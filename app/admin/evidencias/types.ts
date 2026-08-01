@@ -12,6 +12,10 @@ export interface TallyFile {
   isSynced?: boolean;
   syncStatus?: string;
   syncError?: string | null;
+  questionId?: string | null;
+  isManual?: boolean;
+  estadoRevision?: 'pendiente' | 'cumple' | 'no_cumple';
+  observacionRevision?: string | null;
 }
 
 export interface SubmisionEvidencia {
@@ -22,8 +26,10 @@ export interface SubmisionEvidencia {
   grupo: string;
   clase: string;
   fechaEnvio: string;
+  fechaActividadReal?: string | null;
   fotos?: { label: string; archivos: TallyFile[] }[];
   estado: 'pendiente' | 'aprobada' | 'rechazada';
+  backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
   notas: string | null;
 }
 
@@ -35,7 +41,9 @@ export interface SubmisionMetadata {
   grupo: string;
   clase: string;
   fechaEnvio: string;
+  fechaActividadReal?: string | null;
   estado: 'pendiente' | 'aprobada' | 'rechazada';
+  backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
   notas: string | null;
 }
 
@@ -46,12 +54,30 @@ export interface Preview {
   label: string;
 }
 
+export interface ReemplazoModalState {
+  submissionId: string;
+  formId: string;
+  questionId: string | null;
+  tallyFileUrl: string;
+  tallyFileName: string | null;
+  currentName: string;
+  currentUrl: string;
+}
+
+export interface RevisionModalState {
+  submission: SubmisionEvidencia;
+  archivo: TallyFile & { label: string };
+  estadoRevision: 'cumple' | 'no_cumple';
+}
+
 export interface SessionPermiso {
   componenteId: string;
   puedeVer: boolean;
   puedeAprobar: boolean;
   puedeDevolver: boolean;
   puedeReemplazar: boolean;
+  puedeEliminarEvidencia: boolean;
+  puedeRevisarEvidencia: boolean;
   puedeSincronizarBackup: boolean;
   puedeExportar: boolean;
 }
@@ -60,6 +86,8 @@ export interface SessionComp {
   compId: string;
   nombre: string;
   isSuperAdmin: boolean;
+  isSuperCoordinador?: boolean;
+  puedeEliminarClases?: boolean;
   permisos: SessionPermiso[];
   fotoUrl?: string | null;
   rolBase?: string | null;

@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
-import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/session-helper';
+import { requireUserSession, checkComponentPermission, AuthError, ensureTallyRealActivityDateColumn } from '@/lib/session-helper';
 import { DoxaPermisoComponente } from '@prisma/client';
 import { SubmisionMetadata } from '@/lib/evidencias/types';
 import { fetchSubmissions, extractAnswer, invalidateCache } from '@/lib/evidencias/tally-fetch';
 import { deleteSubmission, deleteClase } from '@/lib/evidencias/delete-service';
+import { getSubmissionFileUrls } from '@/lib/evidencias/file-groups';
+import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 
 export async function GET(req: Request) {
   const startTime = Date.now();
   try {
     const session = await requireUserSession();
+    await ensureTallyRealActivityDateColumn();
 
     const { searchParams } = new URL(req.url);
     const filterComponente = searchParams.get('componente');
@@ -60,15 +63,23 @@ export async function GET(req: Request) {
       }
     }
 
-    // 3. Batch query database for all deleted submission IDs and approvals
+    // 3. Batch query database for all deleted submission IDs, approvals and backup snapshots
     const tStartPrisma = Date.now();
-    const [deletedSubs, aprobaciones] = await Promise.all([
+    const [deletedSubs, aprobaciones, archivosSnapshot, submissionSnapshots] = await Promise.all([
       prisma.tallyDeletedSubmission.findMany({
         where: { tallySubmissionId: { in: allSubIds } },
         select: { tallySubmissionId: true }
       }),
       prisma.aprobacionTally.findMany({
         where: { tallySubmissionId: { in: allSubIds } }
+      }),
+      prisma.tallyArchivoSnapshot.findMany({
+        where: { tallySubmissionId: { in: allSubIds } },
+        select: { tallySubmissionId: true, tallyFileUrl: true, cloudinaryUrl: true, syncStatus: true }
+      }),
+      prisma.tallySubmissionSnapshot.findMany({
+        where: { tallySubmissionId: { in: allSubIds } },
+        select: { tallySubmissionId: true, fechaActividadReal: true, formId: true, grupo: true, clase: true }
       })
     ]);
     const tPrismaMs = Date.now() - tStartPrisma;
@@ -77,6 +88,22 @@ export async function GET(req: Request) {
     const aprobMap = new Map<string, typeof aprobaciones[0]>(
       aprobaciones.map((a) => [a.tallySubmissionId, a])
     );
+    const snapshotMap = new Map<string, typeof submissionSnapshots[0]>(
+      submissionSnapshots.map((snap) => [snap.tallySubmissionId, snap])
+    );
+    const classDateKey = (formId: string, grupo: string, clase: string) => [formId, grupo || 'Sin grupo', clase || 'Sin clase'].join('::');
+    const realDateByClass = new Map<string, Date>();
+    for (const snap of submissionSnapshots) {
+      if (!snap.fechaActividadReal) continue;
+      realDateByClass.set(classDateKey(snap.formId, snap.grupo || '', snap.clase || ''), snap.fechaActividadReal);
+    }
+    const archiveBySubmission = new Map<string, Map<string, typeof archivosSnapshot[number]>>();
+    for (const archive of archivosSnapshot) {
+      if (archive.syncStatus === 'deleted') continue;
+      const byUrl = archiveBySubmission.get(archive.tallySubmissionId) ?? new Map<string, typeof archive>();
+      byUrl.set(cleanUrl(archive.tallyFileUrl), archive);
+      archiveBySubmission.set(archive.tallySubmissionId, byUrl);
+    }
 
     const mappedSubmissions: SubmisionMetadata[] = [];
     const clasesConEnvio = new Set<string>();
@@ -107,8 +134,23 @@ export async function GET(req: Request) {
         const grupo = grupoQs.length > 0 ? extractAnswer(getResp(grupoQs.map(q => q.id))) : '';
         const clase = claseQs.length > 0 ? extractAnswer(getResp(claseQs.map(q => q.id))) : '';
         const fechaEnvio = sub.submittedAt ?? sub.createdAt;
+        const fechaActividadReal = snapshotMap.get(sub.id)?.fechaActividadReal ?? realDateByClass.get(classDateKey(comp.formId, grupo, clase)) ?? null;
+        const fechaOperacion = fechaActividadReal?.toISOString() ?? fechaEnvio;
         const aprobacion = aprobMap.get(sub.id);
         const estado = (aprobacion?.estado as 'pendiente' | 'aprobada' | 'rechazada') ?? 'pendiente';
+        const fileUrls = getSubmissionFileUrls(sub.responses, questions);
+        const archiveMap = archiveBySubmission.get(sub.id);
+        let backupStatus: SubmisionMetadata['backupStatus'] = 'empty';
+        if (fileUrls.length > 0) {
+          let syncedCount = 0;
+          let hasFailure = false;
+          for (const url of fileUrls) {
+            const archive = archiveMap?.get(url);
+            if (archive?.syncStatus === 'failed') hasFailure = true;
+            if (archive?.syncStatus === 'synced' && archive.cloudinaryUrl) syncedCount += 1;
+          }
+          backupStatus = hasFailure ? 'failed' : syncedCount === fileUrls.length ? 'synced' : syncedCount > 0 ? 'partial' : 'pending';
+        }
 
         // Keep track of all classes and statuses for tabs
         if (clase) {
@@ -123,8 +165,8 @@ export async function GET(req: Request) {
         // Apply filters
         if (filterClase && clase !== filterClase) continue;
         if (filterGrupo && grupo !== filterGrupo) continue;
-        if (filterDesde && new Date(fechaEnvio) < new Date(filterDesde)) continue;
-        if (filterHasta && new Date(fechaEnvio) > new Date(filterHasta + 'T23:59:59')) continue;
+        if (filterDesde && new Date(fechaOperacion) < new Date(filterDesde)) continue;
+        if (filterHasta && new Date(fechaOperacion) > new Date(filterHasta + 'T23:59:59')) continue;
         if (filterEstado && estado !== filterEstado) continue;
 
         mappedSubmissions.push({
@@ -135,14 +177,16 @@ export async function GET(req: Request) {
           grupo,
           clase,
           fechaEnvio,
+          fechaActividadReal: fechaActividadReal?.toISOString() ?? null,
           estado,
+          backupStatus,
           notas: aprobacion?.notas ?? null,
         });
       }
     }
 
     mappedSubmissions.sort(
-      (a, b) => new Date(b.fechaEnvio).getTime() - new Date(a.fechaEnvio).getTime()
+      (a, b) => new Date(b.fechaActividadReal ?? b.fechaEnvio).getTime() - new Date(a.fechaActividadReal ?? a.fechaEnvio).getTime()
     );
 
     const total = mappedSubmissions.length;
@@ -178,8 +222,8 @@ export async function DELETE(req: Request) {
     const clase = searchParams.get('clase');
     const componenteParam = searchParams.get('componente');
 
-    if (clase && !session.isSuperAdmin) {
-      return NextResponse.json({ error: 'Solo el superadmin puede eliminar clases completas' }, { status: 403 });
+    if ((clase || submissionId) && !session.puedeEliminarClases) {
+      return NextResponse.json({ error: 'No autorizado para eliminar entregas o clases completas' }, { status: 403 });
     }
 
     let targetComponentId: string | null = componenteParam || null;
@@ -207,12 +251,12 @@ export async function DELETE(req: Request) {
     }
 
     if (targetComponentId) {
-      const isAuthorized = await checkComponentPermission(session, targetComponentId, 'puedeAprobar');
+      const isAuthorized = await checkComponentPermission(session, targetComponentId, 'puedeVer');
       if (!isAuthorized) {
         return NextResponse.json({ error: 'No autorizado para eliminar en este componente' }, { status: 403 });
       }
     } else {
-      if (!session.isSuperAdmin) {
+      if (!session.puedeEliminarClases) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
       }
     }

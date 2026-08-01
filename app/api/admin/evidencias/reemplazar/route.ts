@@ -68,19 +68,22 @@ export async function POST(req: Request) {
 
     const targetClean = cleanUrl(tallyFileUrl);
 
-    // Extract all file URLs in this submission
-    const fileUrls: string[] = [];
+    // Extract file URLs in this submission. When questionId is present, validate
+    // the exact question+file pair so replacing one evidence cannot affect another.
+    const fileUrls: { questionId: string; url: string }[] = [];
     for (const resp of submission.responses ?? []) {
       if (Array.isArray(resp.answer)) {
         for (const f of resp.answer) {
           if (f && typeof f === 'object' && 'url' in f) {
-            fileUrls.push(f.url as string);
+            fileUrls.push({ questionId: resp.questionId, url: f.url as string });
           }
         }
       }
     }
 
-    const hasMatch = fileUrls.some(u => cleanUrl(u) === targetClean);
+    const hasMatch = fileUrls.some(item =>
+      cleanUrl(item.url) === targetClean && (!questionId || item.questionId === questionId)
+    );
     if (!hasMatch) {
       return NextResponse.json({ error: 'La URL del archivo no pertenece a este envío en Tally' }, { status: 400 });
     }
@@ -108,6 +111,7 @@ export async function POST(req: Request) {
         where: {
           tallySubmissionId,
           tallyFileUrl,
+          questionId,
           active: true,
         },
         data: {

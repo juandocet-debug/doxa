@@ -10,6 +10,8 @@ interface EvidenciasToolbarProps {
   setFilterDesde: (d: string) => void;
   filterHasta: string;
   setFilterHasta: (h: string) => void;
+  filterClase: string;
+  puedeDescargarActa: boolean;
   submissions: SubmisionEvidencia[];
   clasesConEnvio: Set<string>;
   currentComp: { id: string; nombre: string; formId: string; grupos: string[] } | null;
@@ -58,6 +60,8 @@ export function EvidenciasToolbar({
   setFilterDesde,
   filterHasta,
   setFilterHasta,
+  filterClase,
+  puedeDescargarActa,
   submissions,
   clasesConEnvio,
   currentComp,
@@ -70,6 +74,11 @@ export function EvidenciasToolbar({
   const visibleComponentes = COMPONENTES.filter(c =>
     isSuperAdmin || session?.permisos?.some((p: SessionPermiso) => p.componenteId === c.id && p.puedeVer)
   );
+  const actaParams = new URLSearchParams({ componente: selectedCompId });
+  if (filterGrupo) actaParams.set('grupo', filterGrupo);
+  if (filterClase) actaParams.set('clase', filterClase);
+  if (filterDesde) actaParams.set('desde', filterDesde);
+  if (filterHasta) actaParams.set('hasta', filterHasta);
 
   return (
     <div style={{ background: C.filter, borderBottom: `1px solid ${C.filterBorder}`, padding: '10px 24px', flexShrink: 0 }}>
@@ -134,6 +143,12 @@ export function EvidenciasToolbar({
           <button onClick={() => { setFilterDesde(''); setFilterHasta(''); }} style={{ ...sBtn(), fontSize: '0.75rem', padding: '0 10px', minHeight: 30 }}>
             Limpiar fechas
           </button>
+        )}
+
+        {puedeDescargarActa && (
+          <a href={`/api/admin/evidencias/pdf?${actaParams.toString()}`} download="acta-general-evidencias.pdf" aria-label="Descargar acta general con los filtros actuales" style={{ ...sBtn(true), minHeight: 38, textDecoration: 'none' }}>
+            Acta general ({submissions.length})
+          </a>
         )}
 
         <span style={{ fontSize: '0.74rem', color: C.textMuted, marginLeft: 'auto', paddingBottom: 9 }}>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireSuperAdmin, AuthError } from '@/lib/session-helper';
+import { requireSuperAdmin, AuthError, ensureDeleteEvidencePermissionColumn, ensureReviewRoleColumns } from '@/lib/session-helper';
 
 type PermisoPayload = {
   componenteId: string;
@@ -8,6 +8,8 @@ type PermisoPayload = {
   puedeAprobar: boolean;
   puedeDevolver: boolean;
   puedeReemplazar: boolean;
+  puedeEliminarEvidencia: boolean;
+  puedeRevisarEvidencia: boolean;
   puedeSincronizarBackup: boolean;
   puedeExportar: boolean;
 };
@@ -19,6 +21,8 @@ function normalizePermiso(p: PermisoPayload): PermisoPayload {
       puedeAprobar: false,
       puedeDevolver: false,
       puedeReemplazar: false,
+      puedeEliminarEvidencia: false,
+      puedeRevisarEvidencia: false,
       puedeSincronizarBackup: false,
       puedeExportar: false,
     };
@@ -30,6 +34,8 @@ function normalizePermiso(p: PermisoPayload): PermisoPayload {
 export async function GET() {
   try {
     await requireSuperAdmin();
+    await ensureDeleteEvidencePermissionColumn();
+    await ensureReviewRoleColumns();
 
     const usuarios = await prisma.doxaUsuario.findMany({
       include: {
@@ -52,10 +58,14 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     await requireSuperAdmin();
+    await ensureDeleteEvidencePermissionColumn();
+    await ensureReviewRoleColumns();
 
     const body = await req.json() as {
       userId: string;
       activo: boolean;
+      esSuperCoordinador?: boolean;
+      puedeEliminarClases?: boolean;
       permisos: PermisoPayload[];
     };
 
@@ -63,10 +73,24 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Falta userId' }, { status: 400 });
     }
 
-    // Update active status
+    const targetUser = await prisma.doxaUsuario.findUnique({
+      where: { id: body.userId },
+      select: { documento: true, email: true }
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
+
+    const isPermanentSuperAdmin = targetUser.documento === '1013600005' || targetUser.email === 'juandocet@gmail.com';
+
     await prisma.doxaUsuario.update({
       where: { id: body.userId },
-      data: { activo: body.activo }
+      data: {
+        activo: body.activo,
+        esSuperCoordinador: isPermanentSuperAdmin ? true : !!body.esSuperCoordinador,
+        puedeEliminarClases: isPermanentSuperAdmin ? true : !!body.puedeEliminarClases,
+      }
     });
 
     // Upsert each permission
@@ -87,6 +111,8 @@ export async function PUT(req: Request) {
               puedeAprobar: p.puedeAprobar,
               puedeDevolver: p.puedeDevolver,
               puedeReemplazar: p.puedeReemplazar,
+              puedeEliminarEvidencia: !!p.puedeEliminarEvidencia,
+              puedeRevisarEvidencia: !!p.puedeRevisarEvidencia,
               puedeSincronizarBackup: p.puedeSincronizarBackup,
               puedeExportar: p.puedeExportar,
             },
@@ -97,6 +123,8 @@ export async function PUT(req: Request) {
               puedeAprobar: p.puedeAprobar,
               puedeDevolver: p.puedeDevolver,
               puedeReemplazar: p.puedeReemplazar,
+              puedeEliminarEvidencia: !!p.puedeEliminarEvidencia,
+              puedeRevisarEvidencia: !!p.puedeRevisarEvidencia,
               puedeSincronizarBackup: p.puedeSincronizarBackup,
               puedeExportar: p.puedeExportar,
             },

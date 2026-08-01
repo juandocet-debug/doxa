@@ -1,213 +1,154 @@
-import React, { useEffect } from 'react';
-import { SubmisionEvidencia, Preview, TallyFile } from '../types';
+﻿import React, { useEffect, useState } from 'react';
+import { SubmisionEvidencia, Preview, TallyFile, ReemplazoModalState } from '../types';
 import { ICONS } from './Icons';
-
-interface FolderCardProps {
-  sub: SubmisionEvidencia;
-  isSuperAdmin: boolean;
-  handleDeleteClass: (clase: string) => void;
-  setFilterClase: (clase: string) => void;
-  zipName: string;
-  C: Record<string, string>;
-}
-
-export function FolderCard({
-  sub,
-  isSuperAdmin,
-  handleDeleteClass,
-  setFilterClase,
-  zipName,
-  C,
-}: FolderCardProps) {
-  const estadoColor = sub.estado === 'aprobada' ? '#4ade80' : sub.estado === 'rechazada' ? '#f87171' : '#fbbf24';
-  const estadoLabel = sub.estado === 'aprobada' ? 'Aprobada' : sub.estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
-  const thumbs      = sub.fotos ? sub.fotos.flatMap(g => g.archivos).filter(a => a.mimeType?.startsWith('image/')).slice(0, 4) : [];
-
-  // Folder colors by state
-  const folderTab  = sub.estado === 'aprobada' ? '#3a8f5a' : sub.estado === 'rechazada' ? '#8f3a3a' : '#3a5a8f';
-  const folderBody = sub.estado === 'aprobada'
-    ? 'linear-gradient(160deg,#1a4a30 0%,#0f2e1c 100%)'
-    : sub.estado === 'rechazada'
-    ? 'linear-gradient(160deg,#4a1a1a 0%,#2e0f0f 100%)'
-    : 'linear-gradient(160deg,#1e3a6e 0%,#0f1f3c 100%)';
-
-  return (
-    <div className="folder-card" style={{ position: 'relative', paddingTop: 20, cursor: 'pointer' }} onClick={() => setFilterClase(sub.clase)}>
-      {isSuperAdmin && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteClass(sub.clase);
-          }}
-          title="Eliminar todos los datos de esta clase"
-          style={{
-            position: 'absolute', top: 30, right: 10,
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
-            color: '#F87171', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', transition: 'all 0.15s', zIndex: 10
-          }}
-        >
-          <ICONS.Trash size={12} />
-        </button>
-      )}
-
-      {/* Folder Tab */}
-      <div style={{
-        position: 'absolute', top: 0, left: 18,
-        width: 90, height: 22,
-        background: folderTab,
-        borderRadius: '10px 10px 0 0',
-        zIndex: 1,
-      }} />
-
-      {/* Folder Body */}
-      <div style={{
-        background: folderBody,
-        borderRadius: '0 12px 12px 12px',
-        border: `1px solid rgba(255,255,255,0.1)`,
-        overflow: 'hidden',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-        transition: 'transform .12s, box-shadow .12s',
-      }}>
-        {/* Thumbnails grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', height: 130, gap: 2, padding: 12, paddingBottom: 8 }}>
-          {thumbs.length > 0
-            ? thumbs.map((f, i) => (
-              <img key={i} src={f.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block' }} />
-            ))
-            : (
-              <div style={{ gridColumn: '1/-1', gridRow: '1/-1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', opacity: 0.4 }}>
-                📂
-              </div>
-            )
-          }
-          {thumbs.length > 0 && thumbs.length < 4 && Array.from({ length: 4 - thumbs.length }).map((_, i) => (
-            <div key={`empty-${i}`} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 6 }} />
-          ))}
-        </div>
-
-        {/* Folder Info */}
-        <div style={{ padding: '8px 14px 12px' }}>
-          <p style={{ margin: '0 0 2px', fontSize: '1.05rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
-            {sub.clase}
-          </p>
-          <p style={{ margin: '0 0 8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-            {sub.clase} · Evidencias
-          </p>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.68rem', fontWeight: 700, color: estadoColor }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: estadoColor, flexShrink: 0 }} />
-              {estadoLabel}
-            </span>
-            <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.28)' }}>
-              {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setFilterClase(sub.clase)}
-              style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 10px', minHeight: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
-              Abrir
-            </button>
-            <a
-              href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`}
-              download={`${zipName}.zip`}
-              title={`Descargar ${sub.clase} como ZIP`}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 10px', minHeight: 30, borderRadius: 8, border: 'none', background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.72rem', textDecoration: 'none', flexShrink: 0 }}>
-              📥 ZIP
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface DetailCardProps {
   sub: SubmisionEvidencia;
   puedeExportar: boolean;
+  puedeDescargarActa: boolean;
   puedeSincronizarBackup: boolean;
   puedeAprobar: boolean;
+  puedeRevisarEvidencia: boolean;
   puedeReemplazar: boolean;
+  puedeEliminarEvidencia: boolean;
   uploadingDrive: string | null;
   syncingBackup: string | null;
+  deletingFile: string | null;
+  updatingFechaReal: string | null;
   preview: Preview | null;
   setPreview: (val: Preview | null) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setReemplazarModal: (val: any) => void;
+  setReemplazarModal: (val: ReemplazoModalState | null) => void;
   setReemplazarMotivo: (val: string) => void;
   setReemplazarFile: (val: File | null) => void;
   setReemplazarFilePreview: (val: string | null) => void;
+  setManualUploadModal: (val: SubmisionEvidencia | null) => void;
+  setManualUploadLabel: (val: string) => void;
+  setManualUploadMotivo: (val: string) => void;
+  setManualUploadFile: (val: File | null) => void;
+  setManualUploadFilePreview: (val: string | null) => void;
   handleUploadToDrive: (sub: SubmisionEvidencia) => void;
   handleSyncBackup: (sub: { formId: string; submissionId: string }) => void;
+  handleDeleteEvidenceFile: (sub: SubmisionEvidencia, archivo: TallyFile & { label: string }) => void;
+  handleReviewEvidenceFile: (sub: SubmisionEvidencia, archivo: TallyFile & { label: string }, estadoRevision: 'cumple' | 'no_cumple') => void;
+  handleUpdateFechaReal: (sub: SubmisionEvidencia, fechaActividadReal: string | null) => void;
   handleDeleteSubmission: (submissionId: string) => void;
   setFilterClase: (val: string) => void;
   sBtn: () => React.CSSProperties;
   zipName: string;
   C: Record<string, string>;
-  
-  // Lazy files props
   loadedFiles: Record<string, { label: string; archivos: TallyFile[] }[]>;
   loadingFiles: Record<string, boolean>;
   fetchFilesForSubmission: (submissionId: string) => Promise<void>;
+  defaultOpen?: boolean;
 }
 
 export function DetailCard({
   sub,
   puedeExportar,
+  puedeDescargarActa,
   puedeSincronizarBackup,
   puedeAprobar,
+  puedeRevisarEvidencia,
   puedeReemplazar,
+  puedeEliminarEvidencia,
   uploadingDrive,
   syncingBackup,
+  deletingFile,
+  updatingFechaReal,
   preview,
   setPreview,
   setReemplazarModal,
   setReemplazarMotivo,
   setReemplazarFile,
   setReemplazarFilePreview,
+  setManualUploadModal,
+  setManualUploadLabel,
+  setManualUploadMotivo,
+  setManualUploadFile,
+  setManualUploadFilePreview,
   handleUploadToDrive,
   handleSyncBackup,
+  handleDeleteEvidenceFile,
+  handleReviewEvidenceFile,
+  handleUpdateFechaReal,
   handleDeleteSubmission,
   setFilterClase,
   sBtn,
   zipName,
   C,
-  
   loadedFiles,
   loadingFiles,
   fetchFilesForSubmission,
+  defaultOpen = false,
 }: DetailCardProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   useEffect(() => {
-    fetchFilesForSubmission(sub.submissionId);
-  }, [sub.submissionId, fetchFilesForSubmission]);
+    setIsOpen(defaultOpen);
+  }, [defaultOpen, sub.submissionId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchFilesForSubmission(sub.submissionId);
+    }
+  }, [isOpen, sub.submissionId, fetchFilesForSubmission]);
 
   const filesForSub = loadedFiles[sub.submissionId] || [];
   const isLoading = loadingFiles[sub.submissionId];
   const totalArchivos = filesForSub.reduce((a, f) => a + f.archivos.length, 0);
   const todasFotos = filesForSub.flatMap(g => g.archivos.map(a => ({ ...a, label: g.label })));
+  const fechaRealValue = sub.fechaActividadReal ? new Date(sub.fechaActividadReal).toISOString().slice(0, 10) : '';
+  const fechaMostrada = sub.fechaActividadReal || sub.fechaEnvio;
+  const shortDateOptions: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: '2-digit' };
+  const [fechaRealDraft, setFechaRealDraft] = useState(fechaRealValue);
+
+  useEffect(() => {
+    setFechaRealDraft(fechaRealValue);
+  }, [fechaRealValue, sub.submissionId]);
+
+  const toggleOpen = () => setIsOpen(open => !open);
 
   return (
-    <div style={{ background: 'rgba(10,18,30,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 80px rgba(0,0,0,0.65)', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <section style={{ background: 'rgba(10,18,30,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 44px rgba(0,0,0,0.45)' }}>
+      <div
+        style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) auto auto', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'rgba(255,255,255,0.025)', borderBottom: isOpen ? '1px solid rgba(255,255,255,0.06)' : '0', color: 'inherit' }}
+      >
+        <button
+          type="button"
+          onClick={toggleOpen}
+          aria-expanded={isOpen}
+          aria-label={`${isOpen ? 'Cerrar' : 'Abrir'} evidencias de ${sub.grupo || 'Sin grupo'} ${sub.clase}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <ICONS.Folder />
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', margin: 0 }}>{sub.clase}</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, fontSize: '0.72rem', color: C.textMuted }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ICONS.Calendar size={12} /> {new Date(sub.fechaEnvio).toLocaleString('es-CO')}</span>
-              <span>·</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ICONS.File size={12} /> {isLoading ? 'Cargando...' : `${totalArchivos} archivos`}</span>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: '0 0 3px', color: C.lime, fontSize: '0.58rem', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Grupo</p>
+            <h2 style={{ fontSize: '1rem', fontWeight: 850, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.grupo || 'Sin grupo'}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: '0.7rem', color: C.textMuted, flexWrap: 'wrap' }}>
+              <strong style={{ color: C.textPrimary }}>{sub.clase}</strong>
+              <span>|</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><ICONS.Calendar size={12} /> Real: {new Date(fechaMostrada).toLocaleDateString('es-CO')}</span>
+              <span>|</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>Carga: {new Date(sub.fechaEnvio).toLocaleDateString('es-CO')}</span>
+              <span>|</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><ICONS.File size={12} /> {isLoading ? 'Cargando...' : `${totalArchivos} archivos`}</span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+          {puedeReemplazar && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 34, padding: '0 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.035)', color: C.textMuted, fontSize: '0.7rem', fontWeight: 800 }}>
+              <span>Fecha real</span>
+              <input type="date" value={fechaRealDraft} disabled={updatingFechaReal === sub.submissionId} onChange={(e) => setFechaRealDraft(e.target.value)} style={{ colorScheme: 'dark', border: '1px solid rgba(16,185,129,0.28)', background: 'rgba(2,6,4,0.65)', color: C.textPrimary, borderRadius: 6, minHeight: 26, padding: '0 8px', fontWeight: 800, fontSize: '0.72rem' }} />
+              <button type="button" disabled={updatingFechaReal === sub.submissionId || fechaRealDraft === fechaRealValue} onClick={() => handleUpdateFechaReal(sub, fechaRealDraft || null)} style={{ minHeight: 26, padding: '0 10px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.38)', background: fechaRealDraft === fechaRealValue ? 'rgba(255,255,255,0.04)' : 'rgba(16,185,129,0.18)', color: fechaRealDraft === fechaRealValue ? C.textMuted : C.lime, fontSize: '0.68rem', fontWeight: 900, cursor: updatingFechaReal === sub.submissionId || fechaRealDraft === fechaRealValue ? 'default' : 'pointer' }}>
+                {updatingFechaReal === sub.submissionId ? 'Guardando' : 'Establecer'}
+              </button>
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, border: '1px solid #10B981', background: 'rgba(16,185,129,0.06)', color: '#10B981', fontSize: '0.72rem', fontWeight: 700 }}>
             <ICONS.Shield size={13} filled={true} /> Estado del respaldo
           </div>
@@ -217,138 +158,223 @@ export function DetailCard({
               <a href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`} download={`${zipName}.zip`} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none' }}>
                 <ICONS.Zip size={13} /> ZIP
               </a>
-              <button onClick={() => handleUploadToDrive(sub)} disabled={uploadingDrive === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: uploadingDrive === sub.submissionId ? 0.6 : 1 }}>
+              <button type="button" onClick={() => handleUploadToDrive(sub)} disabled={uploadingDrive === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: uploadingDrive === sub.submissionId ? 0.6 : 1 }}>
                 <ICONS.Cloud size={13} /> Drive
               </button>
             </>
           )}
 
+          {puedeDescargarActa && (
+            <a href={`/api/admin/evidencias/${sub.submissionId}/pdf?formId=${encodeURIComponent(sub.formId)}`} download={`acta-revision-${sub.submissionId}.pdf`} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: C.textPrimary, fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none' }}>
+              <ICONS.File size={13} /> Acta PDF
+            </a>
+          )}
+
           {puedeSincronizarBackup && (
-            <button onClick={() => handleSyncBackup(sub)} disabled={syncingBackup === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1 }}>
+            <button type="button" onClick={() => handleSyncBackup(sub)} disabled={syncingBackup === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1 }}>
               <ICONS.Sync size={13} /> Sincronizar
             </button>
           )}
 
           {puedeAprobar && (
-            <button onClick={() => handleDeleteSubmission(sub.submissionId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, fontSize: '0.75rem', cursor: 'pointer' }}>
+            <button type="button" onClick={() => handleDeleteSubmission(sub.submissionId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, fontSize: '0.75rem', cursor: 'pointer' }}>
               <ICONS.Trash size={13} /> Eliminar
             </button>
           )}
 
-          <button onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button type="button" onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <ICONS.Back size={13} /> Volver
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={toggleOpen}
+          aria-label={isOpen ? 'Cerrar bloque' : 'Abrir bloque'}
+          style={{ justifySelf: 'end', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: C.textMuted, cursor: 'pointer', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+        >
+          v
+        </button>
       </div>
 
-      {sub.notas && (
-        <div style={{ background: 'rgba(216,200,246,0.06)', border: '1px solid rgba(216,200,246,0.12)', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: '#D8C8F6', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <ICONS.Note size={14} /> <strong>Observación:</strong> {sub.notas}
-        </div>
-      )}
+      {isOpen && (
+        <div style={{ padding: 20, display: 'grid', gap: 18 }}>
+          {sub.notas && (
+            <div style={{ background: 'rgba(216,200,246,0.06)', border: '1px solid rgba(216,200,246,0.12)', borderRadius: 8, padding: '10px 14px', fontSize: '0.78rem', color: '#D8C8F6', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ICONS.Note size={14} /> <strong>Observacion:</strong> {sub.notas}
+            </div>
+          )}
 
-      {/* Grid of files inside submission */}
-      {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: C.textMuted, fontSize: '0.9rem' }}>
-          <div style={{ width: 24, height: 24, border: '2px solid rgba(16,185,129,0.2)', borderTopColor: C.lime, borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 10px' }} />
-          Cargando archivos de evidencia...
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
-          {todasFotos.map((archivo, ai) => {
-            const isSelected = preview?.url === archivo.downloadUrl;
-            const fileExt = (archivo.name.split('.').pop() || '').toLowerCase();
-            let badgeBg = 'rgba(107, 114, 128, 0.15)';
-            let badgeColor = '#9CA3AF';
-            if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt)) {
-              badgeBg = fileExt === 'png' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(167, 139, 250, 0.15)';
-              badgeColor = fileExt === 'png' ? '#34D399' : '#A78BFA';
-            } else if (fileExt === 'pdf') {
-              badgeBg = 'rgba(239, 68, 68, 0.15)';
-              badgeColor = '#EF4444';
-            }
-            const sizeMB = archivo.size ? (archivo.size / (1024 * 1024)).toFixed(1) + ' MB' : '0.0 MB';
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: C.textMuted, fontSize: '0.9rem' }}>
+              <div style={{ width: 24, height: 24, border: '2px solid rgba(16,185,129,0.2)', borderTopColor: C.lime, borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 10px' }} />
+              Cargando archivos de evidencia...
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
+              {puedeReemplazar && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualUploadModal(sub);
+                    setManualUploadLabel('Lista de asistencia');
+                    setManualUploadMotivo('');
+                    setManualUploadFile(null);
+                    setManualUploadFilePreview(null);
+                  }}
+                  style={{ minHeight: 310, borderRadius: 12, border: `1.5px dashed ${C.lime}`, background: 'rgba(16,185,129,0.055)', color: C.lime, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 18 }}
+                >
+                  <span style={{ display: 'grid', placeItems: 'center', gap: 10, textAlign: 'center' }}>
+                    <span style={{ width: 54, height: 54, borderRadius: '50%', border: `1px solid ${C.lime}`, display: 'grid', placeItems: 'center', fontSize: 34, lineHeight: 1 }}>+</span>
+                    <strong style={{ fontSize: '0.86rem', color: C.textPrimary }}>Agregar evidencia manual</strong>
+                    <span style={{ fontSize: '0.7rem', color: C.textMuted }}>Lista de asistencia u otro soporte</span>
+                  </span>
+                </button>
+              )}
+              {todasFotos.map((archivo, ai) => {
+                const isSelected = preview?.url === archivo.downloadUrl;
+                const fileExt = (archivo.name.split('.').pop() || '').toLowerCase();
+                let badgeBg = 'rgba(107, 114, 128, 0.15)';
+                let badgeColor = '#9CA3AF';
+                if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt)) {
+                  badgeBg = fileExt === 'png' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(167, 139, 250, 0.15)';
+                  badgeColor = fileExt === 'png' ? '#34D399' : '#A78BFA';
+                } else if (fileExt === 'pdf') {
+                  badgeBg = 'rgba(239, 68, 68, 0.15)';
+                  badgeColor = '#EF4444';
+                }
+                const sizeMB = archivo.size ? (archivo.size / (1024 * 1024)).toFixed(1) + ' MB' : '0.0 MB';
 
-            return (
-              <div key={ai} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
-                <div style={{ position: 'relative', width: '100%', height: 140, borderRadius: 8, overflow: 'hidden', background: C.input, border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block', outline: 'none' }}>
-                    {archivo.mimeType?.startsWith('image/') ? (
-                      <img src={archivo.url} alt={archivo.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
-                        <ICONS.File size={40} />
+                return (
+                  <div key={`${archivo.questionId ?? 'file'}-${archivo.downloadUrl || archivo.url}-${ai}`} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+                    <div style={{ position: 'relative', width: '100%', height: 140, borderRadius: 8, overflow: 'hidden', background: C.input, border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <button type="button" onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ width: '100%', height: '100%', cursor: 'pointer', padding: 0, background: 'none', border: 'none', display: 'block', outline: 'none' }}>
+                        {archivo.mimeType?.startsWith('image/') ? (
+                          <img src={archivo.url} alt={archivo.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted }}>
+                            <ICONS.File size={40} />
+                          </div>
+                        )}
+                      </button>
+
+                      {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
+                        <div title="Respaldado" style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: 'rgba(16,185,129,0.92)', color: '#052e1d', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
+                          <ICONS.CheckCircle size={15} />
+                        </div>
+                      )}
+
+                      {puedeEliminarEvidencia && (
+                        <button
+                          type="button"
+                          title="Eliminar evidencia"
+                          disabled={deletingFile === (archivo.originalUrl || archivo.url)}
+                          onClick={() => handleDeleteEvidenceFile(sub, archivo)}
+                          style={{ position: 'absolute', top: 8, right: puedeReemplazar ? 42 : 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(127,29,29,0.9)', border: '1px solid rgba(248,113,113,0.72)', color: '#FCA5A5', cursor: deletingFile === (archivo.originalUrl || archivo.url) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: deletingFile === (archivo.originalUrl || archivo.url) ? 0.55 : 1 }}
+                        >
+                          <ICONS.Trash size={12} />
+                        </button>
+                      )}
+
+                      {puedeReemplazar && (
+                        <button type="button" onClick={() => {
+                          setReemplazarModal({
+                            submissionId: sub.submissionId,
+                            formId: sub.formId,
+                            questionId: archivo.questionId ?? null,
+                            tallyFileUrl: archivo.originalUrl || archivo.url,
+                            tallyFileName: archivo.originalName || archivo.name,
+                            currentName: archivo.name,
+                            currentUrl: archivo.downloadUrl || archivo.url,
+                          });
+                          setReemplazarMotivo('');
+                          setReemplazarFile(null);
+                          setReemplazarFilePreview(null);
+                        }} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(15,23,42,0.85)', border: `1px solid ${C.lime}`, color: C.lime, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <ICONS.Sync size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                      <span style={{ alignSelf: 'flex-start', fontSize: '0.58rem', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: badgeBg, color: badgeColor, textTransform: 'uppercase' }}>{fileExt}</span>
+                      <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', margin: '4px 0 2px', lineHeight: 1.3, minHeight: 42, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{archivo.label.replace(/fotografia\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 18, fontSize: '0.58rem', color: C.textMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}><ICONS.Calendar size={10} /> Real {new Date(fechaMostrada).toLocaleDateString('es-CO', shortDateOptions)}</span>
+                        <span style={{ flexShrink: 0 }}>|</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>Carga {new Date(sub.fechaEnvio).toLocaleDateString('es-CO', shortDateOptions)}</span>
+                        <span style={{ flexShrink: 0 }}>|</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}><ICONS.Disk size={10} /> {sizeMB}</span>
                       </div>
-                    )}
-                  </button>
 
-                  {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
-                    <div style={{ position: 'absolute', top: 8, left: 8, width: 22, height: 22, borderRadius: '50%', background: '#10B981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>✓</div>
-                  )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 24, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {archivo.syncStatus === 'synced' ? (
+                          <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#60A5FA', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)', alignItems: 'center', gap: 4 }}>
+                            <ICONS.Cloud size={11} /> Respaldado
+                          </span>
+                        ) : archivo.syncStatus === 'failed' ? (
+                          <span title={archivo.syncError || 'Error'} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#F87171', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)', alignItems: 'center', gap: 4 }}>
+                            <ICONS.Shield size={11} /> Falla backup
+                          </span>
+                        ) : (
+                          <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4 }}>
+                            <ICONS.Hourglass size={11} /> Backup pend.
+                          </span>
+                        )}
+                        {archivo.isReplaced && (
+                          <span title={`Original: ${archivo.originalName}
+Motivo: ${archivo.motivoReemplazo}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(52,211,153,0.2)' }}>Reemplazado</span>
+                        )}
+                      </div>
 
-                  {puedeReemplazar && (
-                    <button onClick={() => {
-                      setReemplazarModal({
-                        submissionId: sub.submissionId,
-                        formId: sub.formId,
-                        questionId: null,
-                        tallyFileUrl: archivo.originalUrl || archivo.url,
-                        tallyFileName: archivo.originalName || archivo.name,
-                        currentName: archivo.name,
-                        currentUrl: archivo.downloadUrl || archivo.url,
-                      });
-                      setReemplazarMotivo('');
-                      setReemplazarFile(null);
-                      setReemplazarFilePreview(null);
-                    }} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(15,23,42,0.85)', border: `1px solid ${C.lime}`, color: C.lime, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <ICONS.Sync size={12} />
-                    </button>
-                  )}
-                </div>
+                      <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
+                        <span style={{
+                          alignSelf: 'start',
+                          display: 'inline-flex',
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          border: `1px solid ${archivo.estadoRevision === 'cumple' ? 'rgba(16,185,129,0.35)' : archivo.estadoRevision === 'no_cumple' ? 'rgba(248,113,113,0.35)' : 'rgba(251,191,36,0.25)'}`,
+                          background: archivo.estadoRevision === 'cumple' ? 'rgba(16,185,129,0.12)' : archivo.estadoRevision === 'no_cumple' ? 'rgba(127,29,29,0.18)' : 'rgba(251,191,36,0.08)',
+                          color: archivo.estadoRevision === 'cumple' ? '#34D399' : archivo.estadoRevision === 'no_cumple' ? '#FCA5A5' : '#FBBF24',
+                          fontSize: '0.62rem',
+                          fontWeight: 850
+                        }}>
+                          {archivo.estadoRevision === 'cumple' ? 'Cumple' : archivo.estadoRevision === 'no_cumple' ? 'No cumple' : 'Sin revisar'}
+                        </span>
+                        {archivo.observacionRevision && (
+                          <p style={{ margin: 0, color: '#FCA5A5', fontSize: '0.65rem', lineHeight: 1.35 }}>
+                            {archivo.observacionRevision}
+                          </p>
+                        )}
+                        {puedeRevisarEvidencia && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')} style={{ flex: 1, minHeight: 26, borderRadius: 6, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#A7F3D0', fontSize: '0.66rem', fontWeight: 850, cursor: 'pointer' }}>
+                              Cumple
+                            </button>
+                            <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')} style={{ flex: 1, minHeight: 26, borderRadius: 6, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(127,29,29,0.18)', color: '#FCA5A5', fontSize: '0.66rem', fontWeight: 850, cursor: 'pointer' }}>
+                              No cumple
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                  <span style={{ alignSelf: 'flex-start', fontSize: '0.58rem', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: badgeBg, color: badgeColor, textTransform: 'uppercase' }}>{fileExt}</span>
-                  <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', margin: '4px 0 2px', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{archivo.label.replace(/fotografía\s*\d+\s*/i, '').replace(/[()]/g, '').trim() || archivo.label}</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.66rem', color: C.textMuted }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Calendar size={11} /> {new Date(sub.fechaEnvio).toLocaleDateString()}</span>
-                    <span>|</span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ICONS.Disk size={11} /> {sizeMB}</span>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                      <a href={`/api/admin/proxy?url=${encodeURIComponent(archivo.downloadUrl || archivo.url)}&name=${encodeURIComponent(archivo.name)}`} download={archivo.name} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none' }}>
+                        <ICONS.Download size={13} /> Descargar
+                      </a>
+                      <button type="button" onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                        <ICONS.Eye size={13} /> Revisar
+                      </button>
+                    </div>
                   </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                    {archivo.isReplaced && (
-                      <span title={`Original: ${archivo.originalName}\nMotivo: ${archivo.motivoReemplazo}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(52,211,153,0.2)' }}>✓ Reemplazado</span>
-                    )}
-                    {archivo.syncStatus === 'synced' ? (
-                      <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#60A5FA', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(96,165,250,0.2)', alignItems: 'center', gap: 4 }}>
-                        <ICONS.Cloud size={11} /> Respaldado
-                      </span>
-                    ) : archivo.syncStatus === 'failed' ? (
-                      <span title={archivo.syncError || 'Error'} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(239,68,68,0.1)', color: '#F87171', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(248,113,113,0.2)', alignItems: 'center', gap: 4 }}>
-                        <ICONS.Shield size={11} /> Falla backup
-                      </span>
-                    ) : (
-                      <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4 }}>
-                        <ICONS.Hourglass size={11} /> Backup pend.
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                  <a href={`/api/admin/proxy?url=${encodeURIComponent(archivo.downloadUrl || archivo.url)}&name=${encodeURIComponent(archivo.name)}`} download={archivo.name} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: archivo.syncStatus === 'synced' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: archivo.syncStatus === 'synced' ? '#34D399' : '#60A5FA', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none' }}>
-                    <ICONS.Download size={13} /> Descargar
-                  </a>
-                  <button onClick={() => setPreview({ submissionId: sub.submissionId, url: archivo.downloadUrl || archivo.url, name: archivo.name, label: archivo.label })} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
-                    <ICONS.Eye size={13} /> Revisar
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

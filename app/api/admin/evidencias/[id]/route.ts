@@ -29,7 +29,10 @@ export async function PATCH(
 
     // Verify permission on backend
     const permKey = estado === 'aprobada' ? 'puedeAprobar' : 'puedeDevolver';
-    const isAuthorized = await checkComponentPermission(session, component.id, permKey);
+    const canReview =
+      await checkComponentPermission(session, component.id, 'puedeRevisarEvidencia') ||
+      (session.isSuperCoordinador && await checkComponentPermission(session, component.id, 'puedeVer'));
+    const isAuthorized = await checkComponentPermission(session, component.id, permKey) || canReview;
     if (!isAuthorized) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }

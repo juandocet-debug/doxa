@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { COMPONENTES } from '@/lib/componentes';
 import { requireUserSession, AuthError } from '@/lib/session-helper';
-import { fetchSubmissions, extractFiles } from '@/lib/evidencias/tally-fetch';
+import { fetchSubmissions } from '@/lib/evidencias/tally-fetch';
+import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 
 export async function GET(
@@ -57,19 +58,9 @@ export async function GET(
 
     const { questions } = tallyData;
 
-    // Gather all files directly from submission responses (bulletproof mapping)
-    const filesGroupMap = new Map<string, TallyFile[]>();
-    for (const resp of sub.responses) {
-      const files = extractFiles(resp.answer);
-      if (files.length > 0) {
-        const q = questions.find((q) => q.id === resp.questionId);
-        const label = q ? (q.title ?? 'Archivo adjunto') : 'Archivo adjunto';
-        if (!filesGroupMap.has(label)) {
-          filesGroupMap.set(label, []);
-        }
-        filesGroupMap.get(label)!.push(...files);
-      }
-    }
+    // Gather all files by Tally question. Repeated labels (Lista de asistencia)
+    // keep separate groups so each uploaded attendance sheet remains visible.
+    const fileGroups = getSubmissionFileGroups(sub.responses, questions);
 
     const [replacements, archives] = await Promise.all([
       prisma.evidenciaTallyReemplazo.findMany({
@@ -81,8 +72,14 @@ export async function GET(
     ]);
 
     const replacementMap = new Map<string, typeof replacements[0]>();
+    const legacyReplacementMap = new Map<string, typeof replacements[0]>();
+    const replacementKey = (questionId: string | null | undefined, url: string) => `${questionId ?? ''}::${cleanUrl(url)}`;
     for (const r of replacements) {
-      replacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      if (r.questionId) {
+        replacementMap.set(replacementKey(r.questionId, r.tallyFileUrl), r);
+      } else {
+        legacyReplacementMap.set(cleanUrl(r.tallyFileUrl), r);
+      }
     }
 
     const archiveMap = new Map<string, typeof archives[0]>();
@@ -90,10 +87,15 @@ export async function GET(
       archiveMap.set(cleanUrl(a.tallyFileUrl), a);
     }
 
-    const fotos = Array.from(filesGroupMap.entries()).map(([label, files]) => {
-      const archivos = files.map((file) => {
+    const manualArchives = archives.filter((a) => a.syncStatus !== 'deleted' && a.tallyFileUrl.startsWith('manual://') && a.cloudinaryUrl);
+
+    const fotos = fileGroups.map((group) => {
+      const archivos = group.archivos.map((file) => {
         const fileClean = cleanUrl(file.url);
-        const repl = replacementMap.get(fileClean);
+        const arch = archiveMap.get(fileClean);
+        if (arch?.syncStatus === 'deleted') return null;
+
+        const repl = replacementMap.get(replacementKey(group.questionId, file.url)) ?? (!group.questionId ? legacyReplacementMap.get(fileClean) : undefined);
         if (repl) {
           let optimizedUrl = repl.replacementUrl;
           const isImage = repl.replacementMime?.startsWith('image/') || file.mimeType?.startsWith('image/');
@@ -112,10 +114,12 @@ export async function GET(
             originalName: file.name,
             motivoReemplazo: repl.motivo,
             syncStatus: 'synced',
+            questionId: group.questionId,
+            estadoRevision: arch?.estadoRevision || 'pendiente',
+            observacionRevision: arch?.observacionRevision || null,
           };
         }
 
-        const arch = archiveMap.get(fileClean);
         if (arch && arch.syncStatus === 'synced' && arch.cloudinaryUrl) {
           let optimizedUrl = arch.cloudinaryUrl;
           const isImage = arch.cloudinaryMime?.startsWith('image/') || file.mimeType?.startsWith('image/');
@@ -133,6 +137,9 @@ export async function GET(
             isSynced: true,
             syncStatus: 'synced',
             originalUrl: file.url,
+            questionId: group.questionId,
+            estadoRevision: arch.estadoRevision || 'pendiente',
+            observacionRevision: arch.observacionRevision || null,
           };
         }
 
@@ -147,14 +154,54 @@ export async function GET(
           syncStatus: arch ? arch.syncStatus : 'pending',
           syncError: arch ? arch.syncError : null,
           originalUrl: file.url,
+          questionId: group.questionId,
+          estadoRevision: arch ? arch.estadoRevision : 'pendiente',
+          observacionRevision: arch ? arch.observacionRevision : null,
         };
-      });
+      }).filter((archivo): archivo is NonNullable<typeof archivo> => Boolean(archivo));
 
       return {
-        label,
+        label: group.label,
         archivos,
       };
     });
+
+    const manualGroups = new Map<string, typeof manualArchives>();
+    for (const item of manualArchives) {
+      const label = item.questionLabel || 'Lista de asistencia manual';
+      const group = manualGroups.get(label) ?? [];
+      group.push(item);
+      manualGroups.set(label, group);
+    }
+
+    for (const [label, items] of manualGroups) {
+      fotos.push({
+        label,
+        archivos: items.map((item) => {
+          let optimizedUrl = item.cloudinaryUrl || '';
+          const isImage = item.cloudinaryMime?.startsWith('image/');
+          if (isImage && optimizedUrl.includes('/upload/')) {
+            optimizedUrl = optimizedUrl.replace('/upload/', '/upload/w_300,q_auto,f_auto/');
+          }
+          return {
+            id: item.tallyFileId || item.id,
+            name: item.tallyFileName || 'evidencia-manual',
+            url: optimizedUrl,
+            downloadUrl: item.cloudinaryUrl || optimizedUrl,
+            mimeType: item.cloudinaryMime || item.tallyMime || 'application/octet-stream',
+            size: item.cloudinarySize || item.tallySize || 0,
+            isSynced: true,
+            isManual: true,
+            syncStatus: item.syncStatus,
+            syncError: item.syncError,
+            originalUrl: item.tallyFileUrl,
+            questionId: item.questionId || 'manual-attendance',
+            estadoRevision: item.estadoRevision || 'pendiente',
+            observacionRevision: item.observacionRevision || null,
+          };
+        }),
+      });
+    }
 
     return NextResponse.json({ fotos });
   } catch (e: unknown) {

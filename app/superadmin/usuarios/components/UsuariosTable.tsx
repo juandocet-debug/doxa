@@ -6,6 +6,8 @@ export interface Permiso {
   puedeAprobar: boolean;
   puedeDevolver: boolean;
   puedeReemplazar: boolean;
+  puedeEliminarEvidencia: boolean;
+  puedeRevisarEvidencia: boolean;
   puedeSincronizarBackup: boolean;
   puedeExportar: boolean;
 }
@@ -17,6 +19,8 @@ export interface Usuario {
   documento: string | null;
   rolBase: string | null;
   activo: boolean;
+  esSuperCoordinador: boolean;
+  puedeEliminarClases: boolean;
   fotoUrl: string | null;
   lastSyncedAt: string | null;
   permisos: Permiso[];
@@ -31,6 +35,11 @@ interface UsuariosTableProps {
   setExpandedUserId: (id: string | null) => void;
   updatingUserId: string | null;
   onActivoToggle: (usuario: Usuario) => void;
+  onGlobalPermissionChange: (
+    usuario: Usuario,
+    key: 'esSuperCoordinador' | 'puedeEliminarClases',
+    value: boolean
+  ) => void;
   onPermissionChange: (
     usuario: Usuario,
     componenteId: string,
@@ -54,6 +63,8 @@ const PERMISOS: { key: PermisoKey; label: string; icon: string }[] = [
   { key: 'puedeAprobar', label: 'Aprobar', icon: '✓' },
   { key: 'puedeDevolver', label: 'Devolver', icon: '↩' },
   { key: 'puedeReemplazar', label: 'Reemplazar', icon: '⇄' },
+  { key: 'puedeRevisarEvidencia', label: 'Revisar', icon: '✓' },
+  { key: 'puedeEliminarEvidencia', label: 'Borrar foto', icon: 'X' },
   { key: 'puedeSincronizarBackup', label: 'Backup', icon: '◇' },
   { key: 'puedeExportar', label: 'Exportar', icon: '⇣' },
 ];
@@ -183,6 +194,8 @@ function getPermiso(usuario: Usuario, componenteId: string): Permiso {
     puedeAprobar: false,
     puedeDevolver: false,
     puedeReemplazar: false,
+    puedeEliminarEvidencia: false,
+    puedeRevisarEvidencia: false,
     puedeSincronizarBackup: false,
     puedeExportar: false
   };
@@ -195,6 +208,7 @@ export function UsuariosTable({
   setExpandedUserId,
   updatingUserId,
   onActivoToggle,
+  onGlobalPermissionChange,
   onPermissionChange,
   C,
   componentesEstaticos,
@@ -360,7 +374,40 @@ export function UsuariosTable({
 
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(240px,2.4fr) repeat(6, minmax(76px,1fr))',
+                  gridTemplateColumns: 'minmax(220px,1fr) minmax(150px,0.35fr) minmax(150px,0.35fr)',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 16px',
+                  borderBottom: `1px solid ${C.surfaceBorder}`,
+                  background: 'rgba(16,185,129,0.035)'
+                }}>
+                  <div>
+                    <div style={{ color: C.textPrimary, fontSize: '0.78rem', fontWeight: 900 }}>Permisos globales de revision</div>
+                    <div style={{ color: C.textMuted, fontSize: '0.68rem', marginTop: 3 }}>
+                      Super coordinador revisa y devuelve. Eliminar clases se autoriza aparte.
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#cce8d7', fontSize: '0.68rem', fontWeight: 850, marginBottom: 6 }}>Super coord.</div>
+                    <PermissionPill
+                      value={!!usuario.esSuperCoordinador}
+                      disabled={isUpdating}
+                      onChange={(value) => onGlobalPermissionChange(usuario, 'esSuperCoordinador', value)}
+                    />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#fecaca', fontSize: '0.68rem', fontWeight: 850, marginBottom: 6 }}>Eliminar clases</div>
+                    <PermissionPill
+                      value={!!usuario.puedeEliminarClases}
+                      disabled={isUpdating}
+                      onChange={(value) => onGlobalPermissionChange(usuario, 'puedeEliminarClases', value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(240px,2.2fr) repeat(8, minmax(76px,1fr))',
                   alignItems: 'center',
                   gap: 8,
                   padding: '12px 16px 8px',
@@ -384,7 +431,7 @@ export function UsuariosTable({
                       key={comp.id}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(240px,2.4fr) repeat(6, minmax(76px,1fr))',
+                        gridTemplateColumns: 'minmax(240px,2.2fr) repeat(8, minmax(76px,1fr))',
                         alignItems: 'center',
                         gap: 8,
                         padding: '10px 16px',

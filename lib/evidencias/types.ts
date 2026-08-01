@@ -12,6 +12,10 @@ export interface TallyFile {
   isSynced?: boolean;
   syncStatus?: string;
   syncError?: string | null;
+  questionId?: string | null;
+  isManual?: boolean;
+  estadoRevision?: 'pendiente' | 'cumple' | 'no_cumple';
+  observacionRevision?: string | null;
 }
 
 export interface SubmisionEvidencia {
@@ -22,8 +26,10 @@ export interface SubmisionEvidencia {
   grupo: string;
   clase: string;
   fechaEnvio: string;
+  fechaActividadReal?: string | null;
   fotos: { label: string; archivos: TallyFile[] }[];
   estado: 'pendiente' | 'aprobada' | 'rechazada';
+  backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
   notas: string | null;
 }
 
@@ -35,6 +41,8 @@ export interface SubmisionMetadata {
   grupo: string;
   clase: string;
   fechaEnvio: string;
+  fechaActividadReal?: string | null;
   estado: 'pendiente' | 'aprobada' | 'rechazada';
+  backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
   notas: string | null;
 }

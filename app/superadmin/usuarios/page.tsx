@@ -72,7 +72,12 @@ export default function SuperadminUsuariosPage() {
     }
   }
 
-  async function saveUserPermissions(usuario: Usuario, updatedPermisos: Permiso[], updatedActivo: boolean) {
+  async function saveUserPermissions(
+    usuario: Usuario,
+    updatedPermisos: Permiso[],
+    updatedActivo: boolean,
+    globalOverrides?: Partial<Pick<Usuario, 'esSuperCoordinador' | 'puedeEliminarClases'>>
+  ) {
     setUpdatingUserId(usuario.id);
     setError('');
     try {
@@ -82,6 +87,8 @@ export default function SuperadminUsuariosPage() {
         body: JSON.stringify({
           userId: usuario.id,
           activo: updatedActivo,
+          esSuperCoordinador: globalOverrides?.esSuperCoordinador ?? usuario.esSuperCoordinador,
+          puedeEliminarClases: globalOverrides?.puedeEliminarClases ?? usuario.puedeEliminarClases,
           permisos: updatedPermisos
         })
       });
@@ -89,7 +96,13 @@ export default function SuperadminUsuariosPage() {
       if (!res.ok) throw new Error(data.error || 'Error al guardar permisos');
 
       setUsuarios(prev =>
-        prev.map(u => (u.id === usuario.id ? { ...u, activo: updatedActivo, permisos: updatedPermisos } : u))
+        prev.map(u => (u.id === usuario.id ? {
+          ...u,
+          activo: updatedActivo,
+          esSuperCoordinador: globalOverrides?.esSuperCoordinador ?? u.esSuperCoordinador,
+          puedeEliminarClases: globalOverrides?.puedeEliminarClases ?? u.puedeEliminarClases,
+          permisos: updatedPermisos
+        } : u))
       );
 
       setSuccessMsg(`Permisos de ${usuario.nombre} actualizados con exito.`);
@@ -116,6 +129,8 @@ export default function SuperadminUsuariosPage() {
         puedeAprobar: false,
         puedeDevolver: false,
         puedeReemplazar: false,
+        puedeEliminarEvidencia: false,
+        puedeRevisarEvidencia: false,
         puedeSincronizarBackup: false,
         puedeExportar: false,
     };
@@ -129,6 +144,8 @@ export default function SuperadminUsuariosPage() {
       nextPermiso.puedeAprobar = false;
       nextPermiso.puedeDevolver = false;
       nextPermiso.puedeReemplazar = false;
+      nextPermiso.puedeEliminarEvidencia = false;
+      nextPermiso.puedeRevisarEvidencia = false;
       nextPermiso.puedeSincronizarBackup = false;
       nextPermiso.puedeExportar = false;
     }
@@ -148,6 +165,14 @@ export default function SuperadminUsuariosPage() {
 
   function handleActivoToggle(usuario: Usuario) {
     saveUserPermissions(usuario, usuario.permisos, !usuario.activo);
+  }
+
+  function handleGlobalPermissionChange(
+    usuario: Usuario,
+    key: 'esSuperCoordinador' | 'puedeEliminarClases',
+    value: boolean
+  ) {
+    saveUserPermissions(usuario, usuario.permisos, usuario.activo, { [key]: value });
   }
 
   const filtered = usuarios.filter(u => {
@@ -292,6 +317,7 @@ export default function SuperadminUsuariosPage() {
             setExpandedUserId={setExpandedUserId}
             updatingUserId={updatingUserId}
             onActivoToggle={handleActivoToggle}
+            onGlobalPermissionChange={handleGlobalPermissionChange}
             onPermissionChange={handlePermissionChange}
             C={C}
             componentesEstaticos={COMPONENTES_ESTATICOS}

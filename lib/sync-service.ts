@@ -1,6 +1,7 @@
 import { prisma } from './db';
 import { uploadToCloudinary } from './cloudinary';
 import { COMPONENTES } from './componentes';
+import { getSubmissionFileGroups } from './evidencias/file-groups';
 
 const API = process.env.TALLY_API_URL || 'https://api.tally.so';
 const KEY = process.env.TALLY_API_KEY;
@@ -18,12 +19,6 @@ function extractAnswer(answer: unknown): string {
   if (Array.isArray(answer)) return (answer[0] as string) ?? '';
   return String(answer);
 }
-
-function extractFiles(answer: unknown): TallyFile[] {
-  if (!Array.isArray(answer)) return [];
-  return answer.filter((f) => f && typeof f === 'object' && 'url' in f) as TallyFile[];
-}
-
 export async function syncSubmissionSnapshot(formId: string, submissionId: string) {
   if (!KEY) {
     throw new Error('Configuración de Tally incompleta en el servidor (Falta API Key).');
@@ -58,7 +53,7 @@ export async function syncSubmissionSnapshot(formId: string, submissionId: strin
   const questions = (tallyData.questions ?? tallyData.data?.questions ?? []) as { id: string; title: string; type: string }[];
   const grupoQ = questions.find(q => q.title?.toLowerCase().includes('grupo') || q.title?.toLowerCase().includes('selecciona'));
   const claseQ = questions.find(q => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número'));
-  const fotoQs = questions.filter(q => q.type === 'FILE_UPLOAD');
+  const fileGroups = getSubmissionFileGroups(sub.responses, questions);
 
   const getResp = (qId: string) => sub.responses.find(r => r.questionId === qId)?.answer;
 
@@ -95,10 +90,9 @@ export async function syncSubmissionSnapshot(formId: string, submissionId: strin
 
   // Extract all files from this submission
   const filesToSync: { file: TallyFile; qId: string; qLabel: string }[] = [];
-  for (const q of fotoQs) {
-    const files = extractFiles(getResp(q.id));
-    for (const f of files) {
-      filesToSync.push({ file: f, qId: q.id, qLabel: q.title });
+  for (const group of fileGroups) {
+    for (const f of group.archivos) {
+      filesToSync.push({ file: f, qId: group.questionId, qLabel: group.label });
     }
   }
 
@@ -110,6 +104,11 @@ export async function syncSubmissionSnapshot(formId: string, submissionId: strin
     let dbFile = await prisma.tallyArchivoSnapshot.findUnique({
       where: { tallyFileUrl: fileUrl }
     });
+
+    if (dbFile && dbFile.syncStatus === 'deleted') {
+      results.push(dbFile);
+      continue;
+    }
 
     if (dbFile && dbFile.syncStatus === 'synced' && dbFile.cloudinaryUrl) {
       // Already synced, skip upload

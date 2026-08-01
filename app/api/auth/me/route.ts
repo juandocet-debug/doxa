@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken, COOKIE_NAME, SUPER_ADMIN_ID } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { ensureDeleteEvidencePermissionColumn, ensureReviewRoleColumns } from '@/lib/session-helper';
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -26,12 +27,16 @@ export async function GET() {
       compId: SUPER_ADMIN_ID,
       nombre: 'Super Administrador',
       isSuperAdmin: true,
+      isSuperCoordinador: true,
+      puedeEliminarClases: true,
       permisos: [],
       grupos: []
     }, { headers: NO_STORE_HEADERS });
   }
 
   const cleanId = compId.split(':')[0];
+  await ensureDeleteEvidencePermissionColumn();
+  await ensureReviewRoleColumns();
   const user = await prisma.doxaUsuario.findUnique({
     where: { id: cleanId },
     include: { permisos: true }
@@ -55,6 +60,8 @@ export async function GET() {
     rolBase: user.rolBase,
     fotoUrl: user.fotoUrl,
     permisos: user.permisos,
-    isSuperAdmin: isSuper
+    isSuperAdmin: isSuper,
+    isSuperCoordinador: isSuper || !!user.esSuperCoordinador,
+    puedeEliminarClases: isSuper || !!user.puedeEliminarClases
   }, { headers: NO_STORE_HEADERS });
 }
