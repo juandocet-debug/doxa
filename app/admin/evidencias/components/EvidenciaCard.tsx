@@ -216,7 +216,7 @@ export function DetailCard({
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 20, marginTop: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
               {puedeReemplazar && (
                 <button
                   type="button"
@@ -272,6 +272,7 @@ export function DetailCard({
                   info: { border: 'rgba(96,165,250,0.42)', bg: 'rgba(59,130,246,0.14)', color: '#93C5FD' },
                 }[reviewTone];
                 const observation = shortObservation(archivo.observacionRevision);
+                const hasBackupIcon = archivo.syncStatus === 'synced' || archivo.isReplaced;
 
                 return (
                   <div key={`${archivo.questionId ?? 'file'}-${archivo.downloadUrl || archivo.url}-${ai}`} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
@@ -286,9 +287,32 @@ export function DetailCard({
                         )}
                       </button>
 
-                      {(archivo.syncStatus === 'synced' || archivo.isReplaced) && (
+                      {hasBackupIcon && (
                         <div title="Respaldado" style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: 'rgba(16,185,129,0.92)', color: '#052e1d', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
                           <ICONS.CheckCircle size={15} />
+                        </div>
+                      )}
+
+                      {puedeRevisarEvidencia && (
+                        <div style={{ position: 'absolute', top: 8, left: hasBackupIcon ? 40 : 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            type="button"
+                            title="Aprobar evidencia"
+                            aria-label={`Aprobar ${archivo.label}`}
+                            onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')}
+                            style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(16,185,129,0.92)', border: '1px solid rgba(167,243,208,0.76)', color: '#052e1d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}
+                          >
+                            <ICONS.CheckCircle size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Devolver evidencia"
+                            aria-label={`Devolver ${archivo.label}`}
+                            onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')}
+                            style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(127,29,29,0.94)', border: '1px solid rgba(248,113,113,0.82)', color: '#FECACA', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}
+                          >
+                            <ICONS.Close size={13} />
+                          </button>
                         </div>
                       )}
 
@@ -348,16 +372,6 @@ export function DetailCard({
                           <span style={{ display: 'inline-flex', minHeight: 24, padding: '0 7px', borderRadius: 5, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.6rem', fontWeight: 800, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                             <ICONS.Hourglass size={11} /> Backup pend.
                           </span>
-                        )}
-                        {puedeRevisarEvidencia && (
-                          <>
-                            <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')} style={{ minHeight: 24, padding: '0 9px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#A7F3D0', fontSize: '0.6rem', fontWeight: 900, cursor: 'pointer', flexShrink: 0 }}>
-                              Aprobar
-                            </button>
-                            <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')} style={{ minHeight: 24, padding: '0 9px', borderRadius: 6, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(127,29,29,0.18)', color: '#FCA5A5', fontSize: '0.6rem', fontWeight: 900, cursor: 'pointer', flexShrink: 0 }}>
-                              Devolver
-                            </button>
-                          </>
                         )}
                       </div>
 
