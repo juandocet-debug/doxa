@@ -11,6 +11,20 @@ function textValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : '-';
 }
 
+function limitWords(value: string | null | undefined, maxWords = 20) {
+  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
+}
+
+function correctionPending(
+  replacement: { replacedAt: Date } | undefined,
+  archive: { estadoRevision: string; revisadoAt: Date | null } | undefined,
+) {
+  if (!replacement) return false;
+  if (!archive) return true;
+  if (archive.estadoRevision === 'pendiente') return true;
+  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -35,11 +49,12 @@ export async function GET(
       return NextResponse.json({ error: 'Solo superadmin o super coordinador pueden descargar el acta PDF' }, { status: 403 });
     }
 
-    const [tallyData, snapshot, aprobacion, archives] = await Promise.all([
+    const [tallyData, snapshot, aprobacion, archives, replacements] = await Promise.all([
       fetchSubmissions(formId),
       prisma.tallySubmissionSnapshot.findUnique({ where: { tallySubmissionId: submissionId } }),
       prisma.aprobacionTally.findUnique({ where: { tallySubmissionId: submissionId } }),
       prisma.tallyArchivoSnapshot.findMany({ where: { tallySubmissionId: submissionId } }),
+      prisma.evidenciaTallyReemplazo.findMany({ where: { tallySubmissionId: submissionId, active: true } }),
     ]);
 
     const submission = tallyData.submissions.find((sub) => sub.id === submissionId);
@@ -48,10 +63,22 @@ export async function GET(
     }
 
     const archiveByUrl = new Map(archives.map((archive) => [cleanUrl(archive.tallyFileUrl), archive]));
+    const replacementByUrl = new Map(replacements.map((replacement) => [`${replacement.questionId ?? ''}::${cleanUrl(replacement.tallyFileUrl)}`, replacement]));
     const fileGroups = getSubmissionFileGroups(submission.responses, tallyData.questions);
     const totalFiles = fileGroups.reduce((count, group) => count + group.archivos.length, 0);
-    const cumple = archives.filter((archive) => archive.estadoRevision === 'cumple').length;
-    const noCumple = archives.filter((archive) => archive.estadoRevision === 'no_cumple').length;
+    const reviewSummary = fileGroups.flatMap((group) => group.archivos.map((file) => {
+      const fileUrl = cleanUrl(file.url);
+      const archive = archiveByUrl.get(fileUrl);
+      const replacement = replacementByUrl.get(`${group.questionId ?? ''}::${fileUrl}`) ?? replacementByUrl.get(`::${fileUrl}`);
+      const pendingCorrection = correctionPending(replacement, archive);
+      return {
+        correctionPending: pendingCorrection,
+        status: pendingCorrection ? 'pendiente' : archive?.estadoRevision || 'pendiente',
+      };
+    }));
+    const cumple = reviewSummary.filter((review) => review.status === 'cumple').length;
+    const noCumple = reviewSummary.filter((review) => review.status === 'no_cumple').length;
+    const corregidas = reviewSummary.filter((review) => review.correctionPending).length;
 
     const doc = new PDFDocument({ margin: 44, size: 'A4' });
     const chunks: Buffer[] = [];
@@ -89,7 +116,8 @@ export async function GET(
       doc.fontSize(9).font('Helvetica')
         .text(`Archivos detectados: ${totalFiles}`)
         .text(`Evidencias marcadas como cumple: ${cumple}`)
-        .text(`Evidencias devueltas/no cumple: ${noCumple}`);
+        .text(`Evidencias devueltas/no cumple: ${noCumple}`)
+        .text(`Evidencias corregidas por aprobar: ${corregidas}`);
       doc.moveDown();
 
       doc.fontSize(12).font('Helvetica-Bold').text('Detalle por evidencia');
@@ -99,7 +127,12 @@ export async function GET(
       for (const group of fileGroups) {
         for (const file of group.archivos) {
           const archive = archiveByUrl.get(cleanUrl(file.url));
-          const status = archive?.estadoRevision === 'cumple'
+          const replacement = replacementByUrl.get(`${group.questionId ?? ''}::${cleanUrl(file.url)}`) ?? replacementByUrl.get(`::${cleanUrl(file.url)}`);
+          const pendingCorrection = correctionPending(replacement, archive);
+          const observation = limitWords(archive?.observacionRevision);
+          const status = pendingCorrection
+            ? 'CORREGIDA - POR APROBAR'
+            : archive?.estadoRevision === 'cumple'
             ? 'CUMPLE'
             : archive?.estadoRevision === 'no_cumple'
               ? 'NO CUMPLE'
@@ -108,11 +141,10 @@ export async function GET(
           if (doc.y > 720) doc.addPage();
           doc.fontSize(10).font('Helvetica-Bold').text(`${index}. ${group.label}`);
           doc.fontSize(8.5).font('Helvetica')
-            .text(`Archivo: ${file.name}`)
             .text(`Estado: ${status}`)
             .text(`Backup: ${archive?.syncStatus || 'pendiente'}`);
-          if (archive?.observacionRevision) {
-            doc.text(`Observacion: ${archive.observacionRevision}`);
+          if (observation) {
+            doc.text(`Observacion: ${observation}`);
           }
           doc.moveDown(0.5);
           index += 1;

@@ -6,6 +6,15 @@ import { fetchSubmissions } from '@/lib/evidencias/tally-fetch';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 
+function correctionPending(
+  replacement: { replacedAt: Date },
+  archive: { estadoRevision: string; revisadoAt: Date | null } | null | undefined,
+) {
+  if (!archive) return true;
+  if (archive.estadoRevision === 'pendiente') return true;
+  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -97,6 +106,7 @@ export async function GET(
 
         const repl = replacementMap.get(replacementKey(group.questionId, file.url)) ?? (!group.questionId ? legacyReplacementMap.get(fileClean) : undefined);
         if (repl) {
+          const pendingCorrection = correctionPending(repl, arch);
           let optimizedUrl = repl.replacementUrl;
           const isImage = repl.replacementMime?.startsWith('image/') || file.mimeType?.startsWith('image/');
           if (isImage && optimizedUrl.includes('/upload/')) {
@@ -115,7 +125,8 @@ export async function GET(
             motivoReemplazo: repl.motivo,
             syncStatus: 'synced',
             questionId: group.questionId,
-            estadoRevision: arch?.estadoRevision || 'pendiente',
+            correctionPending: pendingCorrection,
+            estadoRevision: pendingCorrection ? 'pendiente' : arch?.estadoRevision || 'pendiente',
             observacionRevision: arch?.observacionRevision || null,
           };
         }

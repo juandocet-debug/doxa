@@ -3,9 +3,14 @@ import { prisma } from '@/lib/db';
 import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import { COMPONENTES } from '@/lib/componentes';
+import { invalidateCache } from '@/lib/evidencias/tally-fetch';
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+
+function limitWords(value: string | null | undefined, maxWords = 20) {
+  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
+}
 
 export async function POST(req: Request) {
   try {
@@ -106,6 +111,54 @@ export async function POST(req: Request) {
 
     // 5. Transacción de base de datos
     const result = await prisma.$transaction(async (tx) => {
+      let snapshot = await tx.tallySubmissionSnapshot.findUnique({
+        where: { tallySubmissionId },
+      });
+
+      if (!snapshot) {
+        snapshot = await tx.tallySubmissionSnapshot.create({
+          data: {
+            tallySubmissionId,
+            formId,
+            componenteId: component.id,
+            componenteNombre: component.nombre,
+            rawJson: { replacementBootstrap: true },
+          },
+        });
+      }
+
+      const previousArchive = await tx.tallyArchivoSnapshot.findUnique({
+        where: { tallyFileUrl },
+      });
+      const previousObservation = previousArchive?.estadoRevision === 'no_cumple'
+        ? limitWords(previousArchive.observacionRevision)
+        : null;
+
+      await tx.tallyArchivoSnapshot.upsert({
+        where: { tallyFileUrl },
+        update: {
+          snapshotId: snapshot.id,
+          tallySubmissionId,
+          formId,
+          questionId,
+          tallyFileName,
+          estadoRevision: 'pendiente',
+          observacionRevision: previousObservation,
+          revisadoPor: null,
+          revisadoAt: null,
+        },
+        create: {
+          snapshotId: snapshot.id,
+          tallySubmissionId,
+          formId,
+          questionId,
+          tallyFileName,
+          tallyFileUrl,
+          syncStatus: 'synced',
+          estadoRevision: 'pendiente',
+          observacionRevision: previousObservation,
+        },
+      });
       // Marcar reemplazos anteriores de este mismo archivo en esta submission como inactivos
       await tx.evidenciaTallyReemplazo.updateMany({
         where: {
@@ -138,6 +191,8 @@ export async function POST(req: Request) {
         },
       });
     });
+
+    invalidateCache(formId);
 
     // Write audit trail
     await logAuditoria({

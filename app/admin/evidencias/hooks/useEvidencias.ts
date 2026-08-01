@@ -2,6 +2,13 @@
 import { COMPONENTES } from '@/lib/componentes';
 import { SessionComp, SubmisionEvidencia, Preview, SessionPermiso, TallyFile, ReemplazoModalState, RevisionModalState } from '../types';
 
+const REVISION_OBSERVACION_MAX_WORDS = 20;
+
+function limitWords(value: string, maxWords = REVISION_OBSERVACION_MAX_WORDS) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, maxWords).join(' ');
+}
+
 export function useEvidencias() {
   const [session, setSession]         = useState<SessionComp | null>(null);
   const [selectedCompId, setSelectedCompId] = useState('');
@@ -311,7 +318,7 @@ export function useEvidencias() {
     archivo: TallyFile & { label: string },
     estadoRevision: 'cumple' | 'no_cumple'
   ) {
-    setRevisionObservacion(estadoRevision === 'no_cumple' ? (archivo.observacionRevision || '') : '');
+    setRevisionObservacion(estadoRevision === 'no_cumple' ? limitWords(archivo.observacionRevision || '') : '');
     setRevisionError('');
     setRevisionModal({ submission: sub, archivo, estadoRevision });
   }
@@ -320,7 +327,7 @@ export function useEvidencias() {
     e.preventDefault();
     if (!revisionModal) return;
     const { submission: sub, archivo, estadoRevision } = revisionModal;
-    const observacionRevision = revisionObservacion.trim() || null;
+    const observacionRevision = limitWords(revisionObservacion) || null;
     if (estadoRevision === 'no_cumple' && !observacionRevision) {
       setRevisionError('Escribe la observación que debe corregirse antes de continuar.');
       return;
@@ -355,7 +362,7 @@ export function useEvidencias() {
             ...group,
             archivos: group.archivos.map(file => {
               if ((file.originalUrl || file.url) !== targetUrl) return file;
-              return { ...file, estadoRevision, observacionRevision };
+              return { ...file, estadoRevision, observacionRevision, correctionPending: false };
             }),
           })),
         };

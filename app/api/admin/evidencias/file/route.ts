@@ -32,6 +32,10 @@ function isManualUrl(url: string) {
   return url.startsWith('manual://');
 }
 
+function limitWords(value: string | null | undefined, maxWords = 20) {
+  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
+}
+
 export async function PATCH(req: Request) {
   try {
     const session = await requireUserSession();
@@ -55,7 +59,9 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Estado de revision no valido.' }, { status: 400 });
     }
 
-    if (estadoRevision === 'no_cumple' && !observacionRevision?.trim()) {
+    const cleanObservation = limitWords(observacionRevision);
+
+    if (estadoRevision === 'no_cumple' && !cleanObservation) {
       return NextResponse.json({ error: 'La observacion es obligatoria cuando la evidencia no cumple.' }, { status: 400 });
     }
 
@@ -98,7 +104,7 @@ export async function PATCH(req: Request) {
         questionLabel,
         tallyFileName,
         estadoRevision,
-        observacionRevision: estadoRevision === 'no_cumple' ? observacionRevision?.trim() : null,
+        observacionRevision: estadoRevision === 'no_cumple' ? cleanObservation : null,
         revisadoPor: reviewedAt ? session.userId : null,
         revisadoAt: reviewedAt,
       },
@@ -112,7 +118,7 @@ export async function PATCH(req: Request) {
         tallyFileUrl,
         syncStatus: 'pending',
         estadoRevision,
-        observacionRevision: estadoRevision === 'no_cumple' ? observacionRevision?.trim() : null,
+        observacionRevision: estadoRevision === 'no_cumple' ? cleanObservation : null,
         revisadoPor: reviewedAt ? session.userId : null,
         revisadoAt: reviewedAt,
       },
@@ -124,7 +130,7 @@ export async function PATCH(req: Request) {
       componenteId: component.id,
       formId,
       tallySubmissionId,
-      detalle: `${tallyFileName || tallyFileUrl}: ${estadoRevision}${observacionRevision ? ` - ${observacionRevision}` : ''}`,
+      detalle: `${tallyFileName || tallyFileUrl}: ${estadoRevision}${cleanObservation ? ` - ${cleanObservation}` : ''}`,
     });
 
     invalidateCache(formId);

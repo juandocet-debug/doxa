@@ -2,6 +2,10 @@
 import { SubmisionEvidencia, Preview, TallyFile, ReemplazoModalState } from '../types';
 import { ICONS } from './Icons';
 
+function shortObservation(value: string | null | undefined) {
+  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, 20).join(' ');
+}
+
 interface DetailCardProps {
   sub: SubmisionEvidencia;
   puedeExportar: boolean;
@@ -245,6 +249,29 @@ export function DetailCard({
                   badgeColor = '#EF4444';
                 }
                 const sizeMB = archivo.size ? (archivo.size / (1024 * 1024)).toFixed(1) + ' MB' : '0.0 MB';
+                const correctionPending = archivo.correctionPending === true;
+                const reviewLabel = correctionPending
+                  ? 'Corregida'
+                  : archivo.estadoRevision === 'cumple'
+                    ? 'Cumple'
+                    : archivo.estadoRevision === 'no_cumple'
+                      ? 'No cumple'
+                      : 'Sin revisar';
+                const reviewHint = correctionPending
+                  ? 'Lista para aprobar'
+                  : archivo.estadoRevision === 'no_cumple'
+                    ? 'Debe corregirse'
+                    : archivo.estadoRevision === 'cumple'
+                      ? 'Aprobada'
+                      : 'Pendiente';
+                const reviewTone = correctionPending ? 'info' : archivo.estadoRevision === 'cumple' ? 'ok' : archivo.estadoRevision === 'no_cumple' ? 'bad' : 'wait';
+                const reviewColors = {
+                  ok: { border: 'rgba(16,185,129,0.42)', bg: 'rgba(16,185,129,0.14)', color: '#A7F3D0' },
+                  bad: { border: 'rgba(248,113,113,0.42)', bg: 'rgba(127,29,29,0.2)', color: '#FCA5A5' },
+                  wait: { border: 'rgba(251,191,36,0.32)', bg: 'rgba(251,191,36,0.09)', color: '#FBBF24' },
+                  info: { border: 'rgba(96,165,250,0.42)', bg: 'rgba(59,130,246,0.14)', color: '#93C5FD' },
+                }[reviewTone];
+                const observation = shortObservation(archivo.observacionRevision);
 
                 return (
                   <div key={`${archivo.questionId ?? 'file'}-${archivo.downloadUrl || archivo.url}-${ai}`} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
@@ -322,38 +349,44 @@ export function DetailCard({
                             <ICONS.Hourglass size={11} /> Backup pend.
                           </span>
                         )}
-                        {archivo.isReplaced && (
-                          <span title={`Original: ${archivo.originalName}
-Motivo: ${archivo.motivoReemplazo}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.12)', color: '#34D399', fontSize: '0.62rem', fontWeight: 700, border: '1px solid rgba(52,211,153,0.2)' }}>Reemplazado</span>
+                        {(archivo.isReplaced || correctionPending) && (
+                          <span title={`Original: ${archivo.originalName || 'evidencia anterior'}
+Motivo: ${archivo.motivoReemplazo || 'Correccion cargada'}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: correctionPending ? 'rgba(59,130,246,0.14)' : 'rgba(16, 185, 129, 0.12)', color: correctionPending ? '#93C5FD' : '#34D399', fontSize: '0.62rem', fontWeight: 700, border: `1px solid ${correctionPending ? 'rgba(96,165,250,0.28)' : 'rgba(52,211,153,0.2)'}` }}>{correctionPending ? 'Corregida' : 'Reemplazado'}</span>
                         )}
                       </div>
 
                       <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
-                        <span style={{
+                        <button type="button" disabled style={{
                           alignSelf: 'start',
                           display: 'inline-flex',
-                          padding: '3px 8px',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 2,
+                          padding: '5px 10px',
                           borderRadius: 999,
-                          border: `1px solid ${archivo.estadoRevision === 'cumple' ? 'rgba(16,185,129,0.35)' : archivo.estadoRevision === 'no_cumple' ? 'rgba(248,113,113,0.35)' : 'rgba(251,191,36,0.25)'}`,
-                          background: archivo.estadoRevision === 'cumple' ? 'rgba(16,185,129,0.12)' : archivo.estadoRevision === 'no_cumple' ? 'rgba(127,29,29,0.18)' : 'rgba(251,191,36,0.08)',
-                          color: archivo.estadoRevision === 'cumple' ? '#34D399' : archivo.estadoRevision === 'no_cumple' ? '#FCA5A5' : '#FBBF24',
+                          border: `1px solid ${reviewColors.border}`,
+                          background: reviewColors.bg,
+                          color: reviewColors.color,
                           fontSize: '0.62rem',
-                          fontWeight: 850
+                          fontWeight: 850,
+                          cursor: 'default',
+                          opacity: 1,
                         }}>
-                          {archivo.estadoRevision === 'cumple' ? 'Cumple' : archivo.estadoRevision === 'no_cumple' ? 'No cumple' : 'Sin revisar'}
-                        </span>
-                        {archivo.observacionRevision && (
-                          <p style={{ margin: 0, color: '#FCA5A5', fontSize: '0.65rem', lineHeight: 1.35 }}>
-                            {archivo.observacionRevision}
+                          <span>{reviewLabel}</span>
+                          <span style={{ fontSize: '0.55rem', opacity: 0.84 }}>{reviewHint}</span>
+                        </button>
+                        {observation && (
+                          <p style={{ margin: 0, padding: '7px 9px', borderRadius: 7, border: '1px solid rgba(248,113,113,0.24)', background: 'rgba(127,29,29,0.12)', color: '#FECACA', fontSize: '0.65rem', lineHeight: 1.35 }}>
+                            <strong>Obs:</strong> {observation}
                           </p>
                         )}
                         {puedeRevisarEvidencia && (
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')} style={{ flex: 1, minHeight: 26, borderRadius: 6, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#A7F3D0', fontSize: '0.66rem', fontWeight: 850, cursor: 'pointer' }}>
-                              Cumple
+                              Aprobar
                             </button>
                             <button type="button" onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')} style={{ flex: 1, minHeight: 26, borderRadius: 6, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(127,29,29,0.18)', color: '#FCA5A5', fontSize: '0.66rem', fontWeight: 850, cursor: 'pointer' }}>
-                              No cumple
+                              Devolver
                             </button>
                           </div>
                         )}

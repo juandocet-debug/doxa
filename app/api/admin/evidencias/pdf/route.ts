@@ -8,6 +8,7 @@ import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 
 type ReviewStatus = 'cumple' | 'no_cumple' | 'pendiente';
+type ReviewItem = { status: ReviewStatus; observation: string | null; correctionPending: boolean };
 
 type ReportRow = {
   grupo: string;
@@ -16,7 +17,9 @@ type ReportRow = {
   total: number;
   cumple: number;
   noCumple: number;
+  corregidas: number;
   pendientes: number;
+  observaciones: string[];
 };
 
 const COLOR = {
@@ -44,18 +47,38 @@ function formatDateRange(dates: Date[]) {
   return first === last ? first : `${first} a ${last}`;
 }
 
-function summarize(rows: { grupo: string; clase: string; fecha: Date; estados: ReviewStatus[] }[]) {
+function limitWords(value: string | null | undefined, maxWords = 20) {
+  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
+}
+
+function correctionPending(
+  replacement: { replacedAt: Date } | undefined,
+  archive: { estadoRevision: string; revisadoAt: Date | null } | undefined,
+) {
+  if (!replacement) return false;
+  if (!archive) return true;
+  if (archive.estadoRevision === 'pendiente') return true;
+  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
+}
+
+function summarize(rows: { grupo: string; clase: string; fecha: Date; reviews: ReviewItem[] }[]) {
   const result = new Map<string, ReportRow>();
   for (const row of rows) {
     const key = `${row.grupo}\u0000${row.clase}`;
     const current = result.get(key) ?? {
-      grupo: row.grupo, clase: row.clase, fechas: [], total: 0, cumple: 0, noCumple: 0, pendientes: 0,
+      grupo: row.grupo, clase: row.clase, fechas: [], total: 0, cumple: 0, noCumple: 0, corregidas: 0, pendientes: 0, observaciones: [],
     };
     current.fechas.push(row.fecha);
-    current.total += row.estados.length;
-    current.cumple += row.estados.filter((status) => status === 'cumple').length;
-    current.noCumple += row.estados.filter((status) => status === 'no_cumple').length;
-    current.pendientes += row.estados.filter((status) => status === 'pendiente').length;
+    current.total += row.reviews.length;
+    current.cumple += row.reviews.filter((review) => review.status === 'cumple').length;
+    current.noCumple += row.reviews.filter((review) => review.status === 'no_cumple').length;
+    current.corregidas += row.reviews.filter((review) => review.correctionPending).length;
+    current.pendientes += row.reviews.filter((review) => review.status === 'pendiente').length;
+    for (const review of row.reviews) {
+      const note = limitWords(review.observation);
+      if (!note) continue;
+      current.observaciones.push(`${review.correctionPending ? 'Corregida' : 'Obs'}: ${note}`);
+    }
     result.set(key, current);
   }
   return [...result.values()].sort((a, b) =>
@@ -85,6 +108,7 @@ async function createPdf(input: {
     const total = input.rows.reduce((sum, row) => sum + row.total, 0);
     const cumple = input.rows.reduce((sum, row) => sum + row.cumple, 0);
     const noCumple = input.rows.reduce((sum, row) => sum + row.noCumple, 0);
+    const corregidas = input.rows.reduce((sum, row) => sum + row.corregidas, 0);
     const pendientes = input.rows.reduce((sum, row) => sum + row.pendientes, 0);
     const progress = total ? Math.round(((cumple + noCumple) / total) * 100) : 0;
 
@@ -96,13 +120,15 @@ async function createPdf(input: {
     };
 
     const columns = [
-      { label: 'CLASE', width: 190, align: 'left' as const },
-      { label: 'FECHA', width: 115, align: 'left' as const },
-      { label: 'TOTAL', width: 65, align: 'center' as const },
-      { label: 'CUMPLE', width: 75, align: 'center' as const },
-      { label: 'NO CUMPLE', width: 88, align: 'center' as const },
-      { label: 'SIN REVISAR', width: 92, align: 'center' as const },
-      { label: 'RESULTADO', width: contentWidth - 625, align: 'center' as const },
+      { label: 'CLASE', width: 124, align: 'left' as const },
+      { label: 'FECHA', width: 88, align: 'left' as const },
+      { label: 'TOTAL', width: 44, align: 'center' as const },
+      { label: 'CUMPLE', width: 54, align: 'center' as const },
+      { label: 'NO CUMPLE', width: 66, align: 'center' as const },
+      { label: 'CORREGIDA', width: 70, align: 'center' as const },
+      { label: 'SIN REV.', width: 58, align: 'center' as const },
+      { label: 'RESULTADO', width: 106, align: 'center' as const },
+      { label: 'OBSERVACION', width: contentWidth - 610, align: 'left' as const },
     ];
 
     const drawTableHeader = () => {
@@ -147,7 +173,7 @@ async function createPdf(input: {
 
     const metrics = [
       ['GRUPOS', groups.length, COLOR.ink], ['CLASES', input.rows.length, COLOR.ink], ['EVIDENCIAS', total, COLOR.ink],
-      ['CUMPLE', cumple, COLOR.green], ['NO CUMPLE', noCumple, COLOR.red], ['SIN REVISAR', pendientes, COLOR.amber], ['AVANCE', `${progress}%`, COLOR.green],
+      ['CUMPLE', cumple, COLOR.green], ['NO CUMPLE', noCumple, COLOR.red], ['CORREGIDAS', corregidas, '#2563EB'], ['SIN REVISAR', pendientes, COLOR.amber], ['AVANCE', `${progress}%`, COLOR.green],
     ] as const;
     const gap = 8;
     const width = (contentWidth - gap * (metrics.length - 1)) / metrics.length;
@@ -171,26 +197,35 @@ async function createPdf(input: {
       drawGroupHeader(grupo, groupRows);
 
       for (const [index, row] of groupRows.entries()) {
-        if (doc.y + 32 > bottom) {
+        const rowHeight = row.observaciones.length ? 44 : 34;
+        if (doc.y + rowHeight > bottom) {
           addPage();
           drawGroupHeader(grupo, groupRows, true);
         }
         const y = doc.y;
-        if (index % 2 === 1) doc.rect(36, y, contentWidth, 32).fill('#FAFCFB');
-        const result = row.noCumple ? ['Requiere ajuste', COLOR.red, COLOR.redSoft] : row.pendientes ? ['Pendiente', COLOR.amber, COLOR.amberSoft] : ['Revisión completa', COLOR.green, COLOR.greenSoft];
-        const values = [row.clase, formatDateRange(row.fechas), row.total, row.cumple, row.noCumple, row.pendientes];
+        if (index % 2 === 1) doc.rect(36, y, contentWidth, rowHeight).fill('#FAFCFB');
+        const result = row.noCumple
+          ? ['Requiere ajuste', COLOR.red, COLOR.redSoft]
+          : row.corregidas
+            ? ['Por aprobar', '#2563EB', '#DBEAFE']
+            : row.pendientes
+              ? ['Pendiente', COLOR.amber, COLOR.amberSoft]
+              : ['Revision completa', COLOR.green, COLOR.greenSoft];
+        const values = [row.clase, formatDateRange(row.fechas), row.total, row.cumple, row.noCumple, row.corregidas, row.pendientes];
         let x = 36;
         values.forEach((value, valueIndex) => {
           const column = columns[valueIndex];
-          const color = valueIndex === 3 ? COLOR.green : valueIndex === 4 ? COLOR.red : valueIndex === 5 ? COLOR.amber : COLOR.ink;
+          const color = valueIndex === 3 ? COLOR.green : valueIndex === 4 ? COLOR.red : valueIndex === 5 ? '#2563EB' : valueIndex === 6 ? COLOR.amber : COLOR.ink;
           doc.fillColor(color).font(valueIndex === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).text(String(value), x + 8, y + 11, { width: column.width - 16, align: column.align });
           x += column.width;
         });
-        const resultWidth = columns[6].width;
+        const resultWidth = columns[7].width;
         doc.roundedRect(x + 7, y + 7, resultWidth - 14, 18, 8).fill(result[2]);
         doc.fillColor(result[1]).font('Helvetica-Bold').fontSize(7.5).text(result[0], x + 12, y + 12, { width: resultWidth - 24, align: 'center' });
-        doc.moveTo(36, y + 32).lineTo(36 + contentWidth, y + 32).strokeColor(COLOR.line).stroke();
-        doc.y = y + 32;
+        x += resultWidth;
+        doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(row.observaciones[0] || '-', x + 8, y + 8, { width: columns[8].width - 16, height: rowHeight - 10 });
+        doc.moveTo(36, y + rowHeight).lineTo(36 + contentWidth, y + rowHeight).strokeColor(COLOR.line).stroke();
+        doc.y = y + rowHeight;
       }
       doc.y += 14;
     }
@@ -236,10 +271,11 @@ export async function GET(req: Request) {
 
     const tallyData = await fetchSubmissions(component.formId);
     const submissionIds = tallyData.submissions.map((item) => item.id);
-    const [snapshots, archives, deleted] = await Promise.all([
+    const [snapshots, archives, deleted, replacements] = await Promise.all([
       prisma.tallySubmissionSnapshot.findMany({ where: { tallySubmissionId: { in: submissionIds } } }),
       prisma.tallyArchivoSnapshot.findMany({ where: { tallySubmissionId: { in: submissionIds }, syncStatus: { not: 'deleted' } } }),
       prisma.tallyDeletedSubmission.findMany({ where: { tallySubmissionId: { in: submissionIds } }, select: { tallySubmissionId: true } }),
+      prisma.evidenciaTallyReemplazo.findMany({ where: { tallySubmissionId: { in: submissionIds }, active: true } }),
     ]);
     const snapshotMap = new Map(snapshots.map((item) => [item.tallySubmissionId, item]));
     const deletedSet = new Set(deleted.map((item) => item.tallySubmissionId));
@@ -249,10 +285,16 @@ export async function GET(req: Request) {
       map.set(cleanUrl(archive.tallyFileUrl), archive);
       archivesBySubmission.set(archive.tallySubmissionId, map);
     }
+    const replacementsBySubmission = new Map<string, Map<string, typeof replacements[number]>>();
+    for (const replacement of replacements) {
+      const map = replacementsBySubmission.get(replacement.tallySubmissionId) ?? new Map<string, typeof replacement>();
+      map.set(`${replacement.questionId ?? ''}::${cleanUrl(replacement.tallyFileUrl)}`, replacement);
+      replacementsBySubmission.set(replacement.tallySubmissionId, map);
+    }
 
     const groupQuestions = tallyData.questions.filter((question) => question.title?.toLowerCase().includes('grupo') || question.title?.toLowerCase().includes('selecciona'));
     const classQuestions = tallyData.questions.filter((question) => question.title?.toLowerCase().includes('clase') || question.title?.toLowerCase().includes('número') || question.title?.toLowerCase().includes('numero'));
-    const sourceRows: { grupo: string; clase: string; fecha: Date; estados: ReviewStatus[] }[] = [];
+    const sourceRows: { grupo: string; clase: string; fecha: Date; reviews: ReviewItem[] }[] = [];
 
     for (const submission of tallyData.submissions) {
       if (deletedSet.has(submission.id)) continue;
@@ -267,13 +309,24 @@ export async function GET(req: Request) {
       if (hasta && fecha > hasta) continue;
 
       const archiveMap = archivesBySubmission.get(submission.id);
-      const estados = getSubmissionFileGroups(submission.responses, tallyData.questions).flatMap((group) =>
-        group.archivos.map((file): ReviewStatus => {
-          const status = archiveMap?.get(cleanUrl(file.url))?.estadoRevision;
-          return status === 'cumple' ? 'cumple' : status === 'no_cumple' ? 'no_cumple' : 'pendiente';
+      const replacementMap = replacementsBySubmission.get(submission.id);
+      const reviews = getSubmissionFileGroups(submission.responses, tallyData.questions).flatMap((group) =>
+        group.archivos.map((file): ReviewItem => {
+          const fileUrl = cleanUrl(file.url);
+          const archive = archiveMap?.get(fileUrl);
+          const replacement = replacementMap?.get(`${group.questionId ?? ''}::${fileUrl}`) ?? replacementMap?.get(`::${fileUrl}`);
+          const pendingCorrection = correctionPending(replacement, archive);
+          const status = pendingCorrection
+            ? 'pendiente'
+            : archive?.estadoRevision === 'cumple'
+              ? 'cumple'
+              : archive?.estadoRevision === 'no_cumple'
+                ? 'no_cumple'
+                : 'pendiente';
+          return { status, observation: archive?.observacionRevision || null, correctionPending: pendingCorrection };
         })
       );
-      sourceRows.push({ grupo, clase, fecha, estados });
+      sourceRows.push({ grupo, clase, fecha, reviews });
     }
 
     const pdf = await createPdf({

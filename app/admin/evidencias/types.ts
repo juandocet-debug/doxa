@@ -14,6 +14,7 @@ export interface TallyFile {
   syncError?: string | null;
   questionId?: string | null;
   isManual?: boolean;
+  correctionPending?: boolean;
   estadoRevision?: 'pendiente' | 'cumple' | 'no_cumple';
   observacionRevision?: string | null;
 }
