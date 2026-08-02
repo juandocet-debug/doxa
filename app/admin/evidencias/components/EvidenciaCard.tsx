@@ -288,30 +288,30 @@ export function DetailCard({
                       </button>
 
                       {hasBackupIcon && (
-                        <div title="Respaldado" style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: 'rgba(16,185,129,0.92)', color: '#052e1d', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
-                          <ICONS.CheckCircle size={15} />
+                        <div title="Respaldado en backup" style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: 'rgba(37,99,235,0.92)', color: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
+                          <ICONS.Cloud size={13} />
                         </div>
                       )}
 
                       {puedeRevisarEvidencia && (
-                        <div style={{ position: 'absolute', top: 8, left: hasBackupIcon ? 40 : 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div aria-label="Acciones de revision" style={{ position: 'absolute', top: 8, left: hasBackupIcon ? 40 : 8, display: 'inline-flex', alignItems: 'center', overflow: 'hidden', borderRadius: 999, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(2,6,4,0.72)', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
                           <button
                             type="button"
                             title="Aprobar evidencia"
                             aria-label={`Aprobar ${archivo.label}`}
                             onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')}
-                            style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(16,185,129,0.92)', border: '1px solid rgba(167,243,208,0.76)', color: '#052e1d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}
+                            style={{ height: 24, minWidth: 34, padding: '0 8px', background: 'rgba(16,185,129,0.9)', border: 0, borderRight: '1px solid rgba(2,6,4,0.34)', color: '#052e1d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 950 }}
                           >
-                            <ICONS.CheckCircle size={14} />
+                            OK
                           </button>
                           <button
                             type="button"
                             title="Devolver evidencia"
                             aria-label={`Devolver ${archivo.label}`}
                             onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')}
-                            style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(127,29,29,0.94)', border: '1px solid rgba(248,113,113,0.82)', color: '#FECACA', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}
+                            style={{ height: 24, minWidth: 34, padding: '0 8px', background: 'rgba(127,29,29,0.94)', border: 0, color: '#FECACA', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 950 }}
                           >
-                            <ICONS.Close size={13} />
+                            NO
                           </button>
                         </div>
                       )}
@@ -359,49 +359,31 @@ export function DetailCard({
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}><ICONS.Disk size={10} /> {sizeMB}</span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 26, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        {archivo.syncStatus === 'synced' ? (
-                          <span style={{ display: 'inline-flex', minHeight: 24, padding: '0 7px', borderRadius: 5, background: 'rgba(59,130,246,0.1)', color: '#60A5FA', fontSize: '0.6rem', fontWeight: 800, border: '1px solid rgba(96,165,250,0.2)', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                            <ICONS.Cloud size={11} /> Respaldado
-                          </span>
-                        ) : archivo.syncStatus === 'failed' ? (
-                          <span title={archivo.syncError || 'Error'} style={{ display: 'inline-flex', minHeight: 24, padding: '0 7px', borderRadius: 5, background: 'rgba(239,68,68,0.1)', color: '#F87171', fontSize: '0.6rem', fontWeight: 800, border: '1px solid rgba(248,113,113,0.2)', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                            <ICONS.Shield size={11} /> Falla backup
-                          </span>
-                        ) : (
-                          <span style={{ display: 'inline-flex', minHeight: 24, padding: '0 7px', borderRadius: 5, background: 'rgba(245,158,11,0.1)', color: '#FBBF24', fontSize: '0.6rem', fontWeight: 800, border: '1px solid rgba(251,191,36,0.2)', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                            <ICONS.Hourglass size={11} /> Backup pend.
-                          </span>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 24, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        {(archivo.isReplaced || correctionPending) && (
+                      {(archivo.isReplaced || correctionPending) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 24, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                           <span title={`Original: ${archivo.originalName || 'evidencia anterior'}
 Motivo: ${archivo.motivoReemplazo || 'Correccion cargada'}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: correctionPending ? 'rgba(59,130,246,0.14)' : 'rgba(16, 185, 129, 0.12)', color: correctionPending ? '#93C5FD' : '#34D399', fontSize: '0.62rem', fontWeight: 700, border: `1px solid ${correctionPending ? 'rgba(96,165,250,0.28)' : 'rgba(52,211,153,0.2)'}` }}>{correctionPending ? 'Corregida' : 'Reemplazado'}</span>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
-                      <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
-                        <button type="button" disabled style={{
+                      <div style={{ display: 'grid', gap: 6, marginTop: 2 }}>
+                        <span style={{
                           alignSelf: 'start',
                           display: 'inline-flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start',
-                          gap: 2,
-                          padding: '5px 10px',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '4px 10px',
                           borderRadius: 999,
                           border: `1px solid ${reviewColors.border}`,
                           background: reviewColors.bg,
                           color: reviewColors.color,
                           fontSize: '0.62rem',
                           fontWeight: 850,
-                          cursor: 'default',
-                          opacity: 1,
                         }}>
                           <span>{reviewLabel}</span>
-                          <span style={{ fontSize: '0.55rem', opacity: 0.84 }}>{reviewHint}</span>
-                        </button>
+                          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'currentColor', opacity: 0.72 }} />
+                          <span style={{ opacity: 0.84 }}>{reviewHint}</span>
+                        </span>
                         {observation && (
                           <div style={{ display: 'grid', gridTemplateColumns: puedeRevisarEvidencia ? '1fr auto' : '1fr', alignItems: 'center', gap: 6, margin: 0, padding: '7px 9px', borderRadius: 7, border: '1px solid rgba(248,113,113,0.24)', background: 'rgba(127,29,29,0.12)', color: '#FECACA', fontSize: '0.65rem', lineHeight: 1.35 }}>
                             <p style={{ margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
