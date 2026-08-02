@@ -27,10 +27,18 @@ const COLOR = {
   amber: '#A85F00', amberSoft: '#FFF4D6', red: '#B42318', redSoft: '#FDECEA',
   line: '#D9E3DD', header: '#073C2B', white: '#FFFFFF', surface: '#F6F9F7',
 };
+const TIME_ZONE = 'America/Bogota';
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TIME_ZONE };
+const DATE_TIME_FORMAT: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: TIME_ZONE };
 
 function safeDate(value: string | null, endOfDay = false) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
+  const [year, month, day] = value.split('-').map(Number);
+  const utcHour = endOfDay ? 28 : 5;
+  const utcMinute = endOfDay ? 59 : 0;
+  const utcSecond = endOfDay ? 59 : 0;
+  const utcMillisecond = endOfDay ? 999 : 0;
+  const date = new Date(Date.UTC(year, month - 1, day, utcHour, utcMinute, utcSecond, utcMillisecond));
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -41,7 +49,7 @@ function classNumber(value: string) {
 function formatDateRange(dates: Date[]) {
   const ordered = [...dates].sort((a, b) => a.getTime() - b.getTime());
   if (!ordered.length) return '-';
-  const format = (date: Date) => date.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const format = (date: Date) => date.toLocaleDateString('es-CO', DATE_FORMAT);
   const first = format(ordered[0]);
   const last = format(ordered[ordered.length - 1]);
   return first === last ? first : `${first} a ${last}`;
@@ -73,7 +81,7 @@ function summarize(rows: { grupo: string; clase: string; fecha: Date; reviews: R
     current.cumple += row.reviews.filter((review) => review.status === 'cumple').length;
     current.noCumple += row.reviews.filter((review) => review.status === 'no_cumple').length;
     current.corregidas += row.reviews.filter((review) => review.correctionPending).length;
-    current.pendientes += row.reviews.filter((review) => review.status === 'pendiente').length;
+    current.pendientes += row.reviews.filter((review) => review.status === 'pendiente' && !review.correctionPending).length;
     for (const review of row.reviews) {
       const note = limitWords(review.observation);
       if (!note) continue;
@@ -155,7 +163,7 @@ async function createPdf(input: {
     doc.rect(0, 0, pageWidth, 104).fill(COLOR.header);
     doc.fillColor(COLOR.white).font('Helvetica-Bold').fontSize(20).text('ACTA GENERAL DE REVISIÓN DE EVIDENCIAS', 36, 30);
     doc.fillColor('#BDE9D6').font('Helvetica').fontSize(9).text('Resumen ejecutivo por grupo y clase', 36, 59);
-    doc.fillColor('#D7F4E8').fontSize(8).text(`Generada: ${new Date().toLocaleString('es-CO')} | Revisor: ${input.revisor}`, 36, 79);
+    doc.fillColor('#D7F4E8').fontSize(8).text(`Generada: ${new Date().toLocaleString('es-CO', DATE_TIME_FORMAT)} | Revisor: ${input.revisor}`, 36, 79);
 
     doc.y = 124;
     doc.fillColor(COLOR.muted).font('Helvetica-Bold').fontSize(7.5).text('COMPONENTE', 36, doc.y);
@@ -204,9 +212,13 @@ async function createPdf(input: {
         }
         const y = doc.y;
         if (index % 2 === 1) doc.rect(36, y, contentWidth, rowHeight).fill('#FAFCFB');
-        const result = row.noCumple
+        const result = row.cumple === row.total && row.total > 0
+          ? ['Cumple', COLOR.green, COLOR.greenSoft]
+          : row.noCumple
           ? ['Requiere ajuste', COLOR.red, COLOR.redSoft]
-          : row.corregidas
+          : row.cumple
+            ? ['Cumple parcial', COLOR.green, COLOR.greenSoft]
+            : row.corregidas
             ? ['Por aprobar', '#2563EB', '#DBEAFE']
             : row.pendientes
               ? ['Pendiente', COLOR.amber, COLOR.amberSoft]
