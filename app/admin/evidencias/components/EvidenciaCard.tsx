@@ -1,11 +1,9 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { SubmisionEvidencia, Preview, TallyFile, ReemplazoModalState } from '../types';
 import { ICONS } from './Icons';
-
 function shortObservation(value: string | null | undefined) {
   return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, 20).join(' ');
 }
-
 interface DetailCardProps {
   sub: SubmisionEvidencia;
   puedeExportar: boolean;
@@ -44,7 +42,6 @@ interface DetailCardProps {
   fetchFilesForSubmission: (submissionId: string) => Promise<void>;
   defaultOpen?: boolean;
 }
-
 export function DetailCard({
   sub,
   puedeExportar,
@@ -84,13 +81,11 @@ export function DetailCard({
   defaultOpen = false,
 }: DetailCardProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-
   useEffect(() => {
     if (isOpen) {
       fetchFilesForSubmission(sub.submissionId);
     }
   }, [isOpen, sub.submissionId, fetchFilesForSubmission]);
-
   const filesForSub = loadedFiles[sub.submissionId] || [];
   const isLoading = loadingFiles[sub.submissionId];
   const totalArchivos = filesForSub.reduce((a, f) => a + f.archivos.length, 0);
@@ -99,9 +94,7 @@ export function DetailCard({
   const fechaMostrada = sub.fechaActividadReal || sub.fechaEnvio;
   const shortDateOptions: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: '2-digit' };
   const [fechaRealDraft, setFechaRealDraft] = useState(fechaRealValue);
-
   const toggleOpen = () => setIsOpen(open => !open);
-
   return (
     <section style={{ background: 'rgba(10,18,30,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 44px rgba(0,0,0,0.45)' }}>
       <div
