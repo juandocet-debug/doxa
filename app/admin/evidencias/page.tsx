@@ -104,13 +104,11 @@ export default function AdminEvidenciasPage() {
     handleReviewEvidenceFile,
     handleUpdateFechaReal,
     handleDeleteSubmission,
-    handleDeleteClass,
     load,
     isSuperAdmin,
     isSuperCoordinador,
     puedeEliminarClases,
     puedeVer,
-    puedeAprobar,
     puedeReemplazar,
     puedeEliminarEvidencia,
     puedeRevisarEvidencia,
@@ -488,9 +486,10 @@ export default function AdminEvidenciasPage() {
                       const zipName = [sub.componenteNombre, sub.grupo, sub.clase]
                         .map(s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,25))
                         .join('__');
+                      const defaultOpen = sectionIndex === 0 && index === 0;
                       return (
                         <DetailCard
-                          key={sub.submissionId}
+                          key={`${sub.submissionId}:${defaultOpen ? 'open' : 'closed'}:${sub.fechaActividadReal ?? ''}`}
                           sub={sub}
                           puedeExportar={puedeExportar}
                           puedeSincronizarBackup={puedeSincronizarBackup}
@@ -526,7 +525,7 @@ export default function AdminEvidenciasPage() {
                           loadedFiles={loadedFiles}
                           loadingFiles={loadingFiles}
                           fetchFilesForSubmission={fetchFilesForSubmission}
-                          defaultOpen={sectionIndex === 0 && index === 0}
+                          defaultOpen={defaultOpen}
                         />
                       );
                     })}

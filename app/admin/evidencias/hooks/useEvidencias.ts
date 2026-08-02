@@ -11,7 +11,7 @@ function limitWords(value: string, maxWords = REVISION_OBSERVACION_MAX_WORDS) {
 
 export function useEvidencias() {
   const [session, setSession]         = useState<SessionComp | null>(null);
-  const [selectedCompId, setSelectedCompId] = useState('');
+  const [selectedCompId, setSelectedCompIdState] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [filterGrupo, setFilterGrupo] = useState('');
   const [filterClase, setFilterClase] = useState('');
@@ -422,14 +422,14 @@ export function useEvidencias() {
           d.isSuperAdmin || d.permisos?.some((p: SessionPermiso) => p.componenteId === c.id && p.puedeVer)
         );
         const initialCompId = visibleComp ? visibleComp.id : '';
-        setSelectedCompId(initialCompId);
+        setSelectedCompIdState(initialCompId);
 
         setAuthLoading(false);
       })
       .catch(() => { window.location.href = '/login'; });
   }, []);
 
-  useEffect(() => {
+  const resetEvidenceViewState = useCallback(() => {
     loadRequestSeq.current += 1;
     setFilterGrupo('');
     setFilterClase('');
@@ -439,7 +439,13 @@ export function useEvidencias() {
     setClasesConEnvio(new Set());
     setEstadoPorClase(new Map());
     setPage(1);
-  }, [selectedCompId]);
+  }, []);
+
+  const setSelectedCompId = useCallback((id: string) => {
+    resetEvidenceViewState();
+    setSelectedCompIdState(id);
+  }, [resetEvidenceViewState]);
+
   const isSuperAdmin = session?.isSuperAdmin === true;
   const isSuperCoordinador = session?.isSuperCoordinador === true;
   const puedeEliminarClases = isSuperAdmin || session?.puedeEliminarClases === true;

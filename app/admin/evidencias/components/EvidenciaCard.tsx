@@ -86,10 +86,6 @@ export function DetailCard({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   useEffect(() => {
-    setIsOpen(defaultOpen);
-  }, [defaultOpen, sub.submissionId]);
-
-  useEffect(() => {
     if (isOpen) {
       fetchFilesForSubmission(sub.submissionId);
     }
@@ -103,10 +99,6 @@ export function DetailCard({
   const fechaMostrada = sub.fechaActividadReal || sub.fechaEnvio;
   const shortDateOptions: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: '2-digit' };
   const [fechaRealDraft, setFechaRealDraft] = useState(fechaRealValue);
-
-  useEffect(() => {
-    setFechaRealDraft(fechaRealValue);
-  }, [fechaRealValue, sub.submissionId]);
 
   const toggleOpen = () => setIsOpen(open => !open);
 
