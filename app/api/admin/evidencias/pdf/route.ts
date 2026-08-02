@@ -6,6 +6,7 @@ import { requireUserSession, checkComponentPermission, AuthError, ensureTallyRea
 import { fetchSubmissions, extractAnswer } from '@/lib/evidencias/tally-fetch';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { isCorrectionPending, limitWords, reviewStatusFromArchive } from '@/lib/evidencias/review-state';
 
 type ReviewStatus = 'cumple' | 'no_cumple' | 'pendiente';
 type ReviewItem = { status: ReviewStatus; observation: string | null; correctionPending: boolean };
@@ -53,20 +54,6 @@ function formatDateRange(dates: Date[]) {
   const first = format(ordered[0]);
   const last = format(ordered[ordered.length - 1]);
   return first === last ? first : `${first} a ${last}`;
-}
-
-function limitWords(value: string | null | undefined, maxWords = 20) {
-  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
-}
-
-function correctionPending(
-  replacement: { replacedAt: Date } | undefined,
-  archive: { estadoRevision: string; revisadoAt: Date | null } | undefined,
-) {
-  if (!replacement) return false;
-  if (!archive) return true;
-  if (archive.estadoRevision === 'pendiente') return true;
-  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
 }
 
 function summarize(rows: { grupo: string; clase: string; fecha: Date; reviews: ReviewItem[] }[]) {
@@ -327,14 +314,8 @@ export async function GET(req: Request) {
           const fileUrl = cleanUrl(file.url);
           const archive = archiveMap?.get(fileUrl);
           const replacement = replacementMap?.get(`${group.questionId ?? ''}::${fileUrl}`) ?? replacementMap?.get(`::${fileUrl}`);
-          const pendingCorrection = correctionPending(replacement, archive);
-          const status = pendingCorrection
-            ? 'pendiente'
-            : archive?.estadoRevision === 'cumple'
-              ? 'cumple'
-              : archive?.estadoRevision === 'no_cumple'
-                ? 'no_cumple'
-                : 'pendiente';
+          const pendingCorrection = isCorrectionPending(replacement, archive);
+          const status = reviewStatusFromArchive(archive, pendingCorrection);
           return { status, observation: archive?.observacionRevision || null, correctionPending: pendingCorrection };
         })
       );

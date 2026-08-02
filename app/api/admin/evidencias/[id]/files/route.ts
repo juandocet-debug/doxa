@@ -5,15 +5,7 @@ import { requireUserSession, AuthError } from '@/lib/session-helper';
 import { fetchSubmissions } from '@/lib/evidencias/tally-fetch';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
-
-function correctionPending(
-  replacement: { replacedAt: Date },
-  archive: { estadoRevision: string; revisadoAt: Date | null } | null | undefined,
-) {
-  if (!archive) return true;
-  if (archive.estadoRevision === 'pendiente') return true;
-  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
-}
+import { isCorrectionPending, reviewStatusFromArchive } from '@/lib/evidencias/review-state';
 
 export async function GET(
   req: Request,
@@ -106,7 +98,7 @@ export async function GET(
 
         const repl = replacementMap.get(replacementKey(group.questionId, file.url)) ?? (!group.questionId ? legacyReplacementMap.get(fileClean) : undefined);
         if (repl) {
-          const pendingCorrection = correctionPending(repl, arch);
+          const pendingCorrection = isCorrectionPending(repl, arch);
           let optimizedUrl = repl.replacementUrl;
           const isImage = repl.replacementMime?.startsWith('image/') || file.mimeType?.startsWith('image/');
           if (isImage && optimizedUrl.includes('/upload/')) {
@@ -126,7 +118,7 @@ export async function GET(
             syncStatus: 'synced',
             questionId: group.questionId,
             correctionPending: pendingCorrection,
-            estadoRevision: pendingCorrection ? 'pendiente' : arch?.estadoRevision || 'pendiente',
+            estadoRevision: reviewStatusFromArchive(arch, pendingCorrection),
             observacionRevision: arch?.observacionRevision || null,
           };
         }

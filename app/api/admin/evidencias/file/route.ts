@@ -5,6 +5,7 @@ import { deleteFromCloudinary } from '@/lib/cloudinary';
 import { requireUserSession, checkComponentPermission, logAuditoria, AuthError } from '@/lib/session-helper';
 import { fetchSubmissions, invalidateCache } from '@/lib/evidencias/tally-fetch';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { limitWords } from '@/lib/evidencias/review-state';
 
 type DeleteEvidenceBody = {
   formId: string;
@@ -30,10 +31,6 @@ type ReviewEvidenceBody = {
 
 function isManualUrl(url: string) {
   return url.startsWith('manual://');
-}
-
-function limitWords(value: string | null | undefined, maxWords = 20) {
-  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
 }
 
 export async function PATCH(req: Request) {

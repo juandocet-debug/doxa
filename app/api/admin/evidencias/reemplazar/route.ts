@@ -4,13 +4,11 @@ import { requireUserSession, checkComponentPermission, logAuditoria, AuthError }
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import { COMPONENTES } from '@/lib/componentes';
 import { invalidateCache } from '@/lib/evidencias/tally-fetch';
+import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { limitWords } from '@/lib/evidencias/review-state';
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-
-function limitWords(value: string | null | undefined, maxWords = 20) {
-  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
-}
 
 export async function POST(req: Request) {
   try {
@@ -61,15 +59,6 @@ export async function POST(req: Request) {
     if (!submission) {
       return NextResponse.json({ error: 'El envío no existe en Tally o no coincide con los parámetros' }, { status: 400 });
     }
-
-    const cleanUrl = (u: string) => {
-      try {
-        const parsed = new URL(u);
-        return parsed.origin + parsed.pathname;
-      } catch {
-        return u;
-      }
-    };
 
     const targetClean = cleanUrl(tallyFileUrl);
 

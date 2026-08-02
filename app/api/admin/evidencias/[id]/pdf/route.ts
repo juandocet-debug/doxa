@@ -6,23 +6,10 @@ import { requireUserSession, checkComponentPermission, AuthError } from '@/lib/s
 import { fetchSubmissions } from '@/lib/evidencias/tally-fetch';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
+import { isCorrectionPending, limitWords, reviewStatusFromArchive } from '@/lib/evidencias/review-state';
 
 function textValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : '-';
-}
-
-function limitWords(value: string | null | undefined, maxWords = 20) {
-  return (value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || null;
-}
-
-function correctionPending(
-  replacement: { replacedAt: Date } | undefined,
-  archive: { estadoRevision: string; revisadoAt: Date | null } | undefined,
-) {
-  if (!replacement) return false;
-  if (!archive) return true;
-  if (archive.estadoRevision === 'pendiente') return true;
-  return archive.estadoRevision === 'no_cumple' && (!archive.revisadoAt || replacement.replacedAt > archive.revisadoAt);
 }
 
 export async function GET(
@@ -70,10 +57,10 @@ export async function GET(
       const fileUrl = cleanUrl(file.url);
       const archive = archiveByUrl.get(fileUrl);
       const replacement = replacementByUrl.get(`${group.questionId ?? ''}::${fileUrl}`) ?? replacementByUrl.get(`::${fileUrl}`);
-      const pendingCorrection = correctionPending(replacement, archive);
+      const pendingCorrection = isCorrectionPending(replacement, archive);
       return {
         correctionPending: pendingCorrection,
-        status: pendingCorrection ? 'pendiente' : archive?.estadoRevision || 'pendiente',
+        status: reviewStatusFromArchive(archive, pendingCorrection),
       };
     }));
     const cumple = reviewSummary.filter((review) => review.status === 'cumple').length;
@@ -128,7 +115,7 @@ export async function GET(
         for (const file of group.archivos) {
           const archive = archiveByUrl.get(cleanUrl(file.url));
           const replacement = replacementByUrl.get(`${group.questionId ?? ''}::${cleanUrl(file.url)}`) ?? replacementByUrl.get(`::${cleanUrl(file.url)}`);
-          const pendingCorrection = correctionPending(replacement, archive);
+          const pendingCorrection = isCorrectionPending(replacement, archive);
           const observation = limitWords(archive?.observacionRevision);
           const status = pendingCorrection
             ? 'CORREGIDA - POR APROBAR'
