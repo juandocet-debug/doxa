@@ -8,7 +8,10 @@ function splitWords(value: string) {
 }
 
 function limitWords(value: string) {
-  return splitWords(value).slice(0, MAX_OBSERVACION_WORDS).join(' ');
+  const words = Array.from(value.matchAll(/\S+/g));
+  if (words.length <= MAX_OBSERVACION_WORDS) return value;
+  const lastAllowed = words[MAX_OBSERVACION_WORDS - 1];
+  return value.slice(0, (lastAllowed.index || 0) + lastAllowed[0].length);
 }
 
 interface RevisionModalProps {

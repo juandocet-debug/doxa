@@ -9,7 +9,6 @@ function shortObservation(value: string | null | undefined) {
 interface DetailCardProps {
   sub: SubmisionEvidencia;
   puedeExportar: boolean;
-  puedeDescargarActa: boolean;
   puedeSincronizarBackup: boolean;
   puedeAprobar: boolean;
   puedeRevisarEvidencia: boolean;
@@ -49,7 +48,6 @@ interface DetailCardProps {
 export function DetailCard({
   sub,
   puedeExportar,
-  puedeDescargarActa,
   puedeSincronizarBackup,
   puedeAprobar,
   puedeRevisarEvidencia,
@@ -142,7 +140,7 @@ export function DetailCard({
           </div>
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flexWrap: 'wrap' }}>
           {puedeReemplazar && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 34, padding: '0 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.035)', color: C.textMuted, fontSize: '0.7rem', fontWeight: 800 }}>
               <span>Fecha real</span>
@@ -159,34 +157,28 @@ export function DetailCard({
 
           {puedeExportar && (
             <>
-              <a href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`} download={`${zipName}.zip`} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none' }}>
+              <a href={`/api/admin/zip?formId=${sub.formId}&submissionId=${sub.submissionId}&zipName=${encodeURIComponent(zipName)}`} download={`${zipName}.zip`} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 10px', minHeight:32, borderRadius:8, background: C.lime, color: '#130620', fontWeight: 850, fontSize: '0.72rem', textDecoration: 'none' }}>
                 <ICONS.Zip size={13} /> ZIP
               </a>
-              <button type="button" onClick={() => handleUploadToDrive(sub)} disabled={uploadingDrive === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, border:'none', background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: uploadingDrive === sub.submissionId ? 0.6 : 1 }}>
+              <button type="button" onClick={() => handleUploadToDrive(sub)} disabled={uploadingDrive === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 10px', minHeight:32, borderRadius:8, border:'none', background: '#10B981', color:'#130620', fontWeight:850, fontSize:'0.72rem', cursor: 'pointer', opacity: uploadingDrive === sub.submissionId ? 0.6 : 1 }}>
                 <ICONS.Cloud size={13} /> Drive
               </button>
             </>
           )}
 
-          {puedeDescargarActa && (
-            <a href={`/api/admin/evidencias/${sub.submissionId}/pdf?formId=${encodeURIComponent(sub.formId)}`} download={`acta-revision-${sub.submissionId}.pdf`} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: C.textPrimary, fontWeight: 850, fontSize: '0.75rem', textDecoration: 'none' }}>
-              <ICONS.File size={13} /> Acta PDF
-            </a>
-          )}
-
           {puedeSincronizarBackup && (
-            <button type="button" onClick={() => handleSyncBackup(sub)} disabled={syncingBackup === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 14px', minHeight:34, borderRadius:8, background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, fontSize:'0.75rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1 }}>
+            <button type="button" onClick={() => handleSyncBackup(sub)} disabled={syncingBackup === sub.submissionId} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'0 10px', minHeight:32, borderRadius:8, background: 'rgba(59,130,246,0.15)', border: '1px solid #3B82F6', color:'#3B82F6', fontWeight:850, fontSize:'0.72rem', cursor: 'pointer', opacity: syncingBackup === sub.submissionId ? 0.6 : 1 }}>
               <ICONS.Sync size={13} /> Sincronizar
             </button>
           )}
 
           {puedeAprobar && (
-            <button type="button" onClick={() => handleDeleteSubmission(sub.submissionId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', minHeight: 34, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, fontSize: '0.75rem', cursor: 'pointer' }}>
+            <button type="button" onClick={() => handleDeleteSubmission(sub.submissionId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0 10px', minHeight: 32, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid #EF4444', color: '#F87171', fontWeight: 850, fontSize: '0.72rem', cursor: 'pointer' }}>
               <ICONS.Trash size={13} /> Eliminar
             </button>
           )}
 
-          <button type="button" onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 34, fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button type="button" onClick={() => setFilterClase('')} style={{ ...sBtn(), minHeight: 32, padding: '0 10px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <ICONS.Back size={13} /> Volver
           </button>
         </div>
@@ -216,7 +208,7 @@ export function DetailCard({
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 20, marginTop: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginTop: 10 }}>
               {puedeReemplazar && (
                 <button
                   type="button"
@@ -258,7 +250,7 @@ export function DetailCard({
                       ? 'No cumple'
                       : 'Sin revisar';
                 const reviewHint = correctionPending
-                  ? 'Lista para aprobar'
+                  ? 'Por aprobar'
                   : archivo.estadoRevision === 'no_cumple'
                     ? 'Debe corregirse'
                     : archivo.estadoRevision === 'cumple'
@@ -272,7 +264,7 @@ export function DetailCard({
                   info: { border: 'rgba(96,165,250,0.42)', bg: 'rgba(59,130,246,0.14)', color: '#93C5FD' },
                 }[reviewTone];
                 const observation = shortObservation(archivo.observacionRevision);
-                const hasBackupIcon = archivo.syncStatus === 'synced' || archivo.isReplaced;
+                const isBackedUp = archivo.syncStatus === 'synced' || archivo.isReplaced;
 
                 return (
                   <div key={`${archivo.questionId ?? 'file'}-${archivo.downloadUrl || archivo.url}-${ai}`} style={{ background: 'rgba(13,20,30,0.45)', border: isSelected ? `1.5px solid ${C.lime}` : '1.5px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
@@ -287,20 +279,18 @@ export function DetailCard({
                         )}
                       </button>
 
-                      {hasBackupIcon && (
-                        <div title="Respaldado en backup" style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: 'rgba(37,99,235,0.92)', color: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
-                          <ICONS.Cloud size={13} />
-                        </div>
-                      )}
+                      <div title={isBackedUp ? 'Respaldado en backup' : 'Backup pendiente'} style={{ position: 'absolute', top: 8, left: 8, width: 24, height: 24, borderRadius: '50%', background: isBackedUp ? 'rgba(37,99,235,0.92)' : 'rgba(15,23,42,0.76)', border: isBackedUp ? '1px solid rgba(191,219,254,0.35)' : '1px solid rgba(255,255,255,0.18)', color: isBackedUp ? '#DBEAFE' : 'rgba(226,232,240,0.74)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
+                        <ICONS.Cloud size={13} />
+                      </div>
 
                       {puedeRevisarEvidencia && (
-                        <div aria-label="Acciones de revision" style={{ position: 'absolute', top: 8, left: hasBackupIcon ? 40 : 8, display: 'inline-flex', alignItems: 'center', overflow: 'hidden', borderRadius: 999, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(2,6,4,0.72)', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
+                        <div aria-label="Acciones de revision" style={{ position: 'absolute', top: 8, left: 36, display: 'inline-flex', alignItems: 'center', overflow: 'hidden', borderRadius: 999, border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(2,6,4,0.72)', boxShadow: '0 6px 14px rgba(0,0,0,0.25)' }}>
                           <button
                             type="button"
                             title="Aprobar evidencia"
                             aria-label={`Aprobar ${archivo.label}`}
                             onClick={() => handleReviewEvidenceFile(sub, archivo, 'cumple')}
-                            style={{ height: 24, minWidth: 34, padding: '0 8px', background: 'rgba(16,185,129,0.9)', border: 0, borderRight: '1px solid rgba(2,6,4,0.34)', color: '#052e1d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 950 }}
+                            style={{ height: 24, minWidth: 30, padding: '0 6px', background: 'rgba(16,185,129,0.9)', border: 0, borderRight: '1px solid rgba(2,6,4,0.34)', color: '#052e1d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 950 }}
                           >
                             OK
                           </button>
@@ -309,7 +299,7 @@ export function DetailCard({
                             title="Devolver evidencia"
                             aria-label={`Devolver ${archivo.label}`}
                             onClick={() => handleReviewEvidenceFile(sub, archivo, 'no_cumple')}
-                            style={{ height: 24, minWidth: 34, padding: '0 8px', background: 'rgba(127,29,29,0.94)', border: 0, color: '#FECACA', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 950 }}
+                            style={{ height: 24, minWidth: 30, padding: '0 6px', background: 'rgba(127,29,29,0.94)', border: 0, color: '#FECACA', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 950 }}
                           >
                             NO
                           </button>
@@ -359,7 +349,7 @@ export function DetailCard({
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}><ICONS.Disk size={10} /> {sizeMB}</span>
                       </div>
 
-                      {(archivo.isReplaced || correctionPending) && (
+                      {archivo.isReplaced && !correctionPending && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 24, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                           <span title={`Original: ${archivo.originalName || 'evidencia anterior'}
 Motivo: ${archivo.motivoReemplazo || 'Correccion cargada'}`} style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 4, background: correctionPending ? 'rgba(59,130,246,0.14)' : 'rgba(16, 185, 129, 0.12)', color: correctionPending ? '#93C5FD' : '#34D399', fontSize: '0.62rem', fontWeight: 700, border: `1px solid ${correctionPending ? 'rgba(96,165,250,0.28)' : 'rgba(52,211,153,0.2)'}` }}>{correctionPending ? 'Corregida' : 'Reemplazado'}</span>
@@ -377,8 +367,12 @@ Motivo: ${archivo.motivoReemplazo || 'Correccion cargada'}`} style={{ display: '
                           border: `1px solid ${reviewColors.border}`,
                           background: reviewColors.bg,
                           color: reviewColors.color,
-                          fontSize: '0.62rem',
+                          fontSize: '0.6rem',
                           fontWeight: 850,
+                          maxWidth: '100%',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}>
                           <span>{reviewLabel}</span>
                           <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'currentColor', opacity: 0.72 }} />

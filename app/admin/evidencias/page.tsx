@@ -480,7 +480,6 @@ export default function AdminEvidenciasPage() {
                           key={sub.submissionId}
                           sub={sub}
                           puedeExportar={puedeExportar}
-                          puedeDescargarActa={isSuperAdmin || isSuperCoordinador}
                           puedeSincronizarBackup={puedeSincronizarBackup}
                           puedeAprobar={puedeEliminarClases}
                           puedeRevisarEvidencia={puedeRevisarEvidencia}
