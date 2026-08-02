@@ -30,6 +30,12 @@ export interface SubmisionEvidencia {
   fotos: { label: string; archivos: TallyFile[] }[];
   estado: 'pendiente' | 'aprobada' | 'rechazada';
   backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
+  reviewSummary?: {
+    total: number;
+    cumple: number;
+    noCumple: number;
+    pendientes: number;
+  };
   notas: string | null;
 }
 
@@ -44,5 +50,11 @@ export interface SubmisionMetadata {
   fechaActividadReal?: string | null;
   estado: 'pendiente' | 'aprobada' | 'rechazada';
   backupStatus?: 'synced' | 'partial' | 'pending' | 'failed' | 'empty';
+  reviewSummary?: {
+    total: number;
+    cumple: number;
+    noCumple: number;
+    pendientes: number;
+  };
   notas: string | null;
 }

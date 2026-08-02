@@ -75,7 +75,7 @@ export async function GET(req: Request) {
       }),
       prisma.tallyArchivoSnapshot.findMany({
         where: { tallySubmissionId: { in: allSubIds } },
-        select: { tallySubmissionId: true, tallyFileUrl: true, cloudinaryUrl: true, syncStatus: true }
+        select: { tallySubmissionId: true, tallyFileUrl: true, cloudinaryUrl: true, syncStatus: true, estadoRevision: true }
       }),
       prisma.tallySubmissionSnapshot.findMany({
         where: { tallySubmissionId: { in: allSubIds } },
@@ -140,6 +140,7 @@ export async function GET(req: Request) {
         const estado = (aprobacion?.estado as 'pendiente' | 'aprobada' | 'rechazada') ?? 'pendiente';
         const fileUrls = getSubmissionFileUrls(sub.responses, questions);
         const archiveMap = archiveBySubmission.get(sub.id);
+        const reviewSummary = { total: 0, cumple: 0, noCumple: 0, pendientes: 0 };
         let backupStatus: SubmisionMetadata['backupStatus'] = 'empty';
         if (fileUrls.length > 0) {
           let syncedCount = 0;
@@ -148,8 +149,20 @@ export async function GET(req: Request) {
             const archive = archiveMap?.get(url);
             if (archive?.syncStatus === 'failed') hasFailure = true;
             if (archive?.syncStatus === 'synced' && archive.cloudinaryUrl) syncedCount += 1;
+            if (archive?.syncStatus === 'deleted') continue;
+            reviewSummary.total += 1;
+            if (archive?.estadoRevision === 'cumple') reviewSummary.cumple += 1;
+            else if (archive?.estadoRevision === 'no_cumple') reviewSummary.noCumple += 1;
+            else reviewSummary.pendientes += 1;
           }
           backupStatus = hasFailure ? 'failed' : syncedCount === fileUrls.length ? 'synced' : syncedCount > 0 ? 'partial' : 'pending';
+        }
+        for (const archive of archiveMap?.values() ?? []) {
+          if (!archive.tallyFileUrl.startsWith('manual://')) continue;
+          reviewSummary.total += 1;
+          if (archive.estadoRevision === 'cumple') reviewSummary.cumple += 1;
+          else if (archive.estadoRevision === 'no_cumple') reviewSummary.noCumple += 1;
+          else reviewSummary.pendientes += 1;
         }
 
         // Keep track of all classes and statuses for tabs
@@ -180,6 +193,7 @@ export async function GET(req: Request) {
           fechaActividadReal: fechaActividadReal?.toISOString() ?? null,
           estado,
           backupStatus,
+          reviewSummary,
           notas: aprobacion?.notas ?? null,
         });
       }

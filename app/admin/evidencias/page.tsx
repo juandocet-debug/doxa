@@ -160,11 +160,20 @@ export default function AdminEvidenciasPage() {
         const classes = Array.from(classMap.entries())
           .map(([clase, items]) => {
             const ordered = [...items].sort((a, b) => new Date(b.fechaEnvio).getTime() - new Date(a.fechaEnvio).getTime());
+            const reviewTotal = ordered.reduce((sum, item) => sum + (item.reviewSummary?.total ?? 0), 0);
+            const reviewCumple = ordered.reduce((sum, item) => sum + (item.reviewSummary?.cumple ?? 0), 0);
+            const reviewNoCumple = ordered.reduce((sum, item) => sum + (item.reviewSummary?.noCumple ?? 0), 0);
+            const reviewPendientes = ordered.reduce((sum, item) => sum + (item.reviewSummary?.pendientes ?? 0), 0);
             return {
               clase,
               items: ordered,
               latest: ordered[0],
               count: ordered.length,
+              reviewTotal,
+              reviewCumple,
+              reviewNoCumple,
+              reviewPendientes,
+              reviewComplete: reviewTotal > 0 && reviewCumple === reviewTotal,
               estado: ordered.some(s => s.estado === 'aprobada') ? 'aprobada' : ordered.some(s => s.estado === 'rechazada') ? 'rechazada' : 'pendiente',
               backupStatus: ordered.some(s => s.backupStatus === 'failed')
                 ? 'failed'
@@ -408,8 +417,11 @@ export default function AdminEvidenciasPage() {
                       >
                       {section.classes.map(group => {
                         const isDuplicatedClass = group.count > 1;
-                        const backupColor = isDuplicatedClass ? '#60a5fa' : group.backupStatus === 'synced' ? '#22c55e' : '#fbbf24';
-                        const backupLabel = isDuplicatedClass ? 'Parcial' : group.backupStatus === 'synced' ? 'Respaldado' : 'Pendiente';
+                        const classApproved = !isDuplicatedClass && group.reviewComplete;
+                        const statusColor = isDuplicatedClass ? '#60a5fa' : classApproved ? '#34d399' : group.reviewNoCumple ? '#f87171' : '#fbbf24';
+                        const statusLabel = isDuplicatedClass ? 'Parcial' : classApproved ? 'Cumple · Aprobada' : group.reviewNoCumple ? 'No cumple' : group.reviewCumple ? 'En revisión' : 'Pendiente';
+                        const cardBorder = classApproved ? '1px solid rgba(52,211,153,0.55)' : '1px solid rgba(255,255,255,0.08)';
+                        const cardBackground = classApproved ? 'linear-gradient(135deg, rgba(16,185,129,0.24), rgba(2,78,51,0.52))' : 'rgba(2,6,4,0.42)';
                         return (
                           <button
                             key={group.clase}
@@ -418,8 +430,8 @@ export default function AdminEvidenciasPage() {
                             style={{
                               minHeight: 104,
                               borderRadius: 9,
-                              border: '1px solid rgba(255,255,255,0.08)',
-                              background: 'rgba(2,6,4,0.42)',
+                              border: cardBorder,
+                              background: cardBackground,
                               color: C.textPrimary,
                               padding: 12,
                               cursor: 'pointer',
@@ -431,13 +443,13 @@ export default function AdminEvidenciasPage() {
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                               <strong style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{group.clase}</strong>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: backupColor, flexShrink: 0 }} />
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
                             </div>
                             <div style={{ color: C.textMuted, fontSize: '0.68rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {section.grupo}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                              <span style={{ color: backupColor, fontSize: '0.66rem', fontWeight: 800 }}>{backupLabel}</span>
+                              <span style={{ color: statusColor, fontSize: '0.66rem', fontWeight: 800 }}>{statusLabel}</span>
                               <span style={{ color: C.textMuted, fontSize: '0.64rem' }}>{group.count} envio{group.count !== 1 ? 's' : ''}</span>
                             </div>
                           </button>
