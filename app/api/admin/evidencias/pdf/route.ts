@@ -217,7 +217,7 @@ async function createPdf(input: {
           : row.noCumple
           ? ['Requiere ajuste', COLOR.red, COLOR.redSoft]
           : row.cumple
-            ? ['Cumple parcial', COLOR.green, COLOR.greenSoft]
+            ? ['En revision', COLOR.green, COLOR.greenSoft]
             : row.corregidas
             ? ['Por aprobar', '#2563EB', '#DBEAFE']
             : row.pendientes

@@ -407,8 +407,9 @@ export default function AdminEvidenciasPage() {
                         }}
                       >
                       {section.classes.map(group => {
-                        const backupColor = group.backupStatus === 'synced' ? '#22c55e' : group.backupStatus === 'partial' ? '#60a5fa' : '#fbbf24';
-                        const backupLabel = group.backupStatus === 'synced' ? 'Respaldado' : group.backupStatus === 'partial' ? 'Parcial' : 'Pendiente';
+                        const isDuplicatedClass = group.count > 1;
+                        const backupColor = isDuplicatedClass ? '#60a5fa' : group.backupStatus === 'synced' ? '#22c55e' : '#fbbf24';
+                        const backupLabel = isDuplicatedClass ? 'Parcial' : group.backupStatus === 'synced' ? 'Respaldado' : 'Pendiente';
                         return (
                           <button
                             key={group.clase}
