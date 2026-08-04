@@ -16,6 +16,7 @@ type ClassCodeIdentity = ClassCodeRef & {
 };
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const STOPWORDS = new Set(['A', 'DE', 'DEL', 'EL', 'LA', 'LAS', 'LOS', 'POR', 'PARA', 'Y']);
 
 function clean(value: string) {
   return value
@@ -30,11 +31,21 @@ function firstNumber(value: string) {
   return match ? Number(match[0]) : null;
 }
 
-function baseChar(value: number | null, fallback: string, defaultChar: string) {
-  if (value !== null && Number.isFinite(value)) {
-    return ALPHABET[value % ALPHABET.length] ?? defaultChar;
-  }
-  return clean(fallback)[0] ?? defaultChar;
+function numberPart(value: string, prefix: string) {
+  const num = firstNumber(value);
+  if (num !== null && Number.isFinite(num)) return `${prefix}${String(num).padStart(2, '0')}`;
+  const fallback = clean(value).slice(0, 2) || '00';
+  return `${prefix}${fallback}`;
+}
+
+function componentPrefix(value: string | null | undefined, size = 2) {
+  const cleanedWords = (value || '')
+    .split(/\s+/)
+    .map(clean)
+    .filter(word => word && !STOPWORDS.has(word));
+  const firstWord = cleanedWords[0] || clean(value || '');
+  if (firstWord.length >= size) return firstWord.slice(0, size);
+  return (cleanedWords.map(word => word[0]).join('') || firstWord || 'XX').slice(0, size).padEnd(size, 'X');
 }
 
 function randomTail(size: number) {
@@ -42,11 +53,11 @@ function randomTail(size: number) {
   return Array.from(bytes, b => ALPHABET[b % ALPHABET.length]).join('');
 }
 
-function codeCandidate(ref: ClassCodeIdentity) {
-  const componentChar = clean(ref.componenteNombre || ref.componenteId)[0] ?? 'X';
-  const groupChar = baseChar(firstNumber(ref.grupo), ref.grupo, 'G');
-  const classChar = baseChar(firstNumber(ref.clase), ref.clase, 'C');
-  return `${componentChar}${groupChar}${classChar}${randomTail(2)}`.slice(0, 5);
+function codeCandidates(ref: ClassCodeIdentity) {
+  const semantic = `${componentPrefix(ref.componenteNombre || ref.componenteId)}${numberPart(ref.grupo, 'G')}${numberPart(ref.clase, 'C')}`;
+  const expanded = `${componentPrefix(ref.componenteNombre || ref.componenteId, 3)}${numberPart(ref.grupo, 'G')}${numberPart(ref.clase, 'C')}`;
+  const idFallback = `${componentPrefix(ref.componenteNombre || ref.componenteId)}${clean(ref.componenteId).slice(-2)}${numberPart(ref.grupo, 'G')}${numberPart(ref.clase, 'C')}`;
+  return Array.from(new Set([semantic, expanded, idFallback]));
 }
 
 export function classCodeIdentity(ref: ClassCodeRef): ClassCodeIdentity {
@@ -70,10 +81,11 @@ function isUniqueConflict(error: unknown) {
 }
 
 async function createClassCode(ref: ClassCodeIdentity) {
+  const candidates = codeCandidates(ref);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       return await prisma.tallyClassCode.create({
-        data: { ...ref, code: codeCandidate(ref) },
+        data: { ...ref, code: candidates[attempt] ?? `${candidates[0]}${randomTail(2)}` },
       });
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
@@ -93,6 +105,21 @@ async function createClassCode(ref: ClassCodeIdentity) {
   throw new Error('No se pudo generar un codigo unico de clase.');
 }
 
+async function alignExistingClassCode(ref: ClassCodeIdentity, current: { id: string; code: string }) {
+  if (codeCandidates(ref).includes(current.code)) return current.code;
+  for (const code of codeCandidates(ref)) {
+    try {
+      return (await prisma.tallyClassCode.update({
+        where: { id: current.id },
+        data: { code, grupo: ref.grupo, clase: ref.clase, componenteNombre: ref.componenteNombre },
+      })).code;
+    } catch (error) {
+      if (!isUniqueConflict(error)) throw error;
+    }
+  }
+  return current.code;
+}
+
 export async function ensureClassCode(ref: ClassCodeRef) {
   const identity = classCodeIdentity(ref);
   const existing = await prisma.tallyClassCode.findUnique({
@@ -105,7 +132,7 @@ export async function ensureClassCode(ref: ClassCodeRef) {
       },
     },
   });
-  if (existing) return existing.code;
+  if (existing) return alignExistingClassCode(identity, existing);
   return (await createClassCode(identity)).code;
 }
 
@@ -129,7 +156,8 @@ export async function ensureClassCodes(refs: ClassCodeRef[]) {
   });
 
   for (const row of existing) {
-    codes.set(classCodeMapKey(row), row.code);
+    const identity = identities.find(ref => classCodeMapKey(ref) === classCodeMapKey(row));
+    codes.set(classCodeMapKey(row), identity ? await alignExistingClassCode(identity, row) : row.code);
   }
   for (const identity of identities) {
     if (codes.has(classCodeMapKey(identity))) continue;

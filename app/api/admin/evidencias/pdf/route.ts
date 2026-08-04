@@ -117,7 +117,7 @@ async function createPdf(input: {
     };
 
     const columns = [
-      { label: 'ID', width: 54, align: 'left' as const },
+      { label: 'COD.', width: 54, align: 'left' as const },
       { label: 'CLASE', width: 96, align: 'left' as const },
       { label: 'FECHA', width: 82, align: 'left' as const },
       { label: 'TOTAL', width: 44, align: 'center' as const },

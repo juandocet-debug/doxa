@@ -56,7 +56,7 @@ export function EvidenceDetailView({ state, groupSections }: EvidenceDetailViewP
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, color: C.textPrimary, fontSize: '1.05rem', fontWeight: 850 }}>{filterClase}</h2>
             {selectedCode && (
-              <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.09)', color: C.lime, fontSize: '0.72rem', fontWeight: 950, letterSpacing: '0.08em' }}>ID {selectedCode}</span>
+              <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.09)', color: C.lime, fontSize: '0.72rem', fontWeight: 950, letterSpacing: '0.08em' }}>{selectedCode}</span>
             )}
           </div>
           <p style={{ margin: '4px 0 0', color: C.textMuted, fontSize: '0.76rem' }}>

@@ -114,7 +114,7 @@ export function DetailCard({
             <p style={{ margin: '0 0 3px', color: C.lime, fontSize: '0.58rem', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Grupo</p>
             <h2 style={{ fontSize: '1rem', fontWeight: 850, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.grupo || 'Sin grupo'}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: '0.7rem', color: C.textMuted, flexWrap: 'wrap' }}>
-              {sub.codigoClase && <><span style={{ display: 'inline-flex', padding: '2px 7px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.32)', background: 'rgba(16,185,129,0.1)', color: C.lime, fontSize: '0.68rem', fontWeight: 950, letterSpacing: '0.08em' }}>ID {sub.codigoClase}</span><span>|</span></>}
+              {sub.codigoClase && <><span style={{ display: 'inline-flex', padding: '2px 7px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.26)', background: 'rgba(16,185,129,0.075)', color: C.lime, fontSize: '0.68rem', fontWeight: 950, letterSpacing: '0.06em' }}>{sub.codigoClase}</span><span>|</span></>}
               <strong style={{ color: C.textPrimary }}>{sub.clase}</strong>
               <span>|</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><ICONS.Calendar size={12} /> Real: {new Date(fechaMostrada).toLocaleDateString('es-CO')}</span>

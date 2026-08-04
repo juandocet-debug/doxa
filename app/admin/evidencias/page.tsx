@@ -290,8 +290,8 @@ export default function AdminEvidenciasPage() {
                               <strong style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{group.clase}</strong>
                               <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
                             </div>
-                            <span style={{ display: 'inline-flex', width: 'fit-content', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.28)', background: 'rgba(16,185,129,0.09)', color: C.lime, fontSize: '0.7rem', fontWeight: 950, letterSpacing: '0.08em' }}>
-                              ID {codigoClase}
+                            <span style={{ display: 'inline-flex', width: 'fit-content', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.22)', background: 'rgba(16,185,129,0.07)', color: C.lime, fontSize: '0.68rem', fontWeight: 950, letterSpacing: '0.06em' }}>
+                              {codigoClase}
                             </span>
                             <div style={{ color: C.textMuted, fontSize: '0.68rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {section.grupo}
