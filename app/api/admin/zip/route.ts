@@ -5,6 +5,7 @@ import { requireUserSession, checkComponentPermission, logAuditoria, AuthError }
 import { COMPONENTES } from '@/lib/componentes';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
+import { ensureClassCode } from '@/lib/evidencias/class-code';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -25,6 +26,12 @@ function ext(name: string, mime: string) {
   return '';
 }
 
+function answerText(answer: unknown): string {
+  if (!answer) return '';
+  if (Array.isArray(answer)) return String(answer[0] ?? '');
+  return String(answer);
+}
+
 export async function GET(req: Request) {
   try {
     const session = await requireUserSession();
@@ -32,7 +39,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const formId       = searchParams.get('formId');
     const submissionId = searchParams.get('submissionId');
-    const zipName      = searchParams.get('zipName') || 'evidencias';
+    const zipNameParam = searchParams.get('zipName') || 'evidencias';
 
     if (!formId || !submissionId) {
       return NextResponse.json({ error: 'Faltan parametros' }, { status: 400 });
@@ -66,6 +73,20 @@ export async function GET(req: Request) {
     }[]).find(s => s.id === submissionId);
 
     if (!sub) return NextResponse.json({ error: 'Envío no encontrado' }, { status: 404 });
+
+    const grupoQuestion = questions.find(q => q.title?.toLowerCase().includes('grupo') || q.title?.toLowerCase().includes('selecciona'));
+    const claseQuestion = questions.find(q => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número') || q.title?.toLowerCase().includes('numero'));
+    const grupo = grupoQuestion ? answerText(sub.responses.find(r => r.questionId === grupoQuestion.id)?.answer) : '';
+    const clase = claseQuestion ? answerText(sub.responses.find(r => r.questionId === claseQuestion.id)?.answer) : '';
+    const zipName = grupo && clase
+      ? await ensureClassCode({
+        formId,
+        componenteId: component.id,
+        componenteNombre: component.nombre,
+        grupo,
+        clase,
+      })
+      : zipNameParam;
 
     if (canSyncBackup) {
       try {
@@ -189,4 +210,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
 }
-

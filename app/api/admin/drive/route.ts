@@ -6,6 +6,7 @@ import { requireUserSession, checkComponentPermission, logAuditoria, AuthError }
 import { COMPONENTES } from '@/lib/componentes';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { syncSubmissionSnapshot } from '@/lib/sync-service';
+import { ensureClassCode } from '@/lib/evidencias/class-code';
 
 const API = process.env.TALLY_API_URL!;
 const KEY = process.env.TALLY_API_KEY!;
@@ -123,17 +124,23 @@ function slug(t: string) {
     .replace(/^_+|_+$/g, '');
 }
 
+function answerText(answer: unknown): string {
+  if (!answer) return '';
+  if (Array.isArray(answer)) return String(answer[0] ?? '');
+  return String(answer);
+}
+
 export async function POST(req: Request) {
   try {
     const session = await requireUserSession();
 
-    const { formId, submissionId, zipName } = await req.json() as {
+    const { formId, submissionId, zipName: zipNameParam } = await req.json() as {
       formId: string;
       submissionId: string;
       zipName: string;
     };
 
-    if (!formId || !submissionId || !zipName) {
+    if (!formId || !submissionId || !zipNameParam) {
       return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
     }
 
@@ -177,6 +184,20 @@ export async function POST(req: Request) {
     }[]).find(s => s.id === submissionId);
 
     if (!sub) return NextResponse.json({ error: 'Envío no encontrado' }, { status: 404 });
+
+    const grupoQuestion = questions.find(q => q.title?.toLowerCase().includes('grupo') || q.title?.toLowerCase().includes('selecciona'));
+    const claseQuestion = questions.find(q => q.title?.toLowerCase().includes('clase') || q.title?.toLowerCase().includes('número') || q.title?.toLowerCase().includes('numero'));
+    const grupo = grupoQuestion ? answerText(sub.responses.find(r => r.questionId === grupoQuestion.id)?.answer) : '';
+    const clase = claseQuestion ? answerText(sub.responses.find(r => r.questionId === claseQuestion.id)?.answer) : '';
+    const zipName = grupo && clase
+      ? await ensureClassCode({
+        formId,
+        componenteId: component.id,
+        componenteNombre: component.nombre,
+        grupo,
+        clase,
+      })
+      : zipNameParam;
 
     if (canSyncBackup) {
       try {

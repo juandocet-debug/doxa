@@ -3,6 +3,7 @@ import { deleteFromCloudinary } from '@/lib/cloudinary';
 import { logAuditoria } from '@/lib/session-helper';
 import { COMPONENTES } from '@/lib/componentes';
 import { fetchSubmissions, extractAnswer } from './tally-fetch';
+import { classCodeIdentity } from './class-code';
 
 export async function deleteSubmission(submissionId: string, sessionUserId: string | null, targetComponentId: string | null) {
   // Record as permanently deleted
@@ -127,6 +128,18 @@ export async function deleteClase(clase: string, sessionUserId: string | null, t
   });
   await prisma.evidenciaTallyReemplazo.deleteMany({
     where: { tallySubmissionId: { in: unionIds } }
+  });
+  const claseIdentity = classCodeIdentity({
+    formId: '',
+    componenteId: targetComponentId || '',
+    grupo: '',
+    clase,
+  });
+  await prisma.tallyClassCode.deleteMany({
+    where: {
+      claseKey: claseIdentity.claseKey,
+      ...(targetComponentId ? { componenteId: targetComponentId } : {})
+    }
   });
 
   await logAuditoria({

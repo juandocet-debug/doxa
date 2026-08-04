@@ -38,6 +38,7 @@ export function buildGroupSections(submissions: SubmisionEvidencia[]) {
 
           return {
             clase,
+            codigoClase: ordered[0]?.codigoClase ?? null,
             items: ordered,
             latest: ordered[0],
             count: ordered.length,

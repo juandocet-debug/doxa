@@ -7,6 +7,7 @@ import { fetchSubmissions, extractAnswer } from '@/lib/evidencias/tally-fetch';
 import { getSubmissionFileGroups } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 import { isCorrectionPending, limitWords, reviewStatusFromArchive } from '@/lib/evidencias/review-state';
+import { classCodeIdentity, classCodeMapKey, ensureClassCodes } from '@/lib/evidencias/class-code';
 
 type ReviewStatus = 'cumple' | 'no_cumple' | 'pendiente';
 type ReviewItem = { status: ReviewStatus; observation: string | null; correctionPending: boolean };
@@ -14,6 +15,7 @@ type ReviewItem = { status: ReviewStatus; observation: string | null; correction
 type ReportRow = {
   grupo: string;
   clase: string;
+  codigoClase: string;
   fechas: Date[];
   total: number;
   cumple: number;
@@ -56,12 +58,12 @@ function formatDateRange(dates: Date[]) {
   return first === last ? first : `${first} a ${last}`;
 }
 
-function summarize(rows: { grupo: string; clase: string; fecha: Date; reviews: ReviewItem[] }[]) {
+function summarize(rows: { grupo: string; clase: string; codigoClase: string; fecha: Date; reviews: ReviewItem[] }[]) {
   const result = new Map<string, ReportRow>();
   for (const row of rows) {
     const key = `${row.grupo}\u0000${row.clase}`;
     const current = result.get(key) ?? {
-      grupo: row.grupo, clase: row.clase, fechas: [], total: 0, cumple: 0, noCumple: 0, corregidas: 0, pendientes: 0, observaciones: [],
+      grupo: row.grupo, clase: row.clase, codigoClase: row.codigoClase, fechas: [], total: 0, cumple: 0, noCumple: 0, corregidas: 0, pendientes: 0, observaciones: [],
     };
     current.fechas.push(row.fecha);
     current.total += row.reviews.length;
@@ -115,15 +117,16 @@ async function createPdf(input: {
     };
 
     const columns = [
-      { label: 'CLASE', width: 124, align: 'left' as const },
-      { label: 'FECHA', width: 88, align: 'left' as const },
+      { label: 'ID', width: 54, align: 'left' as const },
+      { label: 'CLASE', width: 96, align: 'left' as const },
+      { label: 'FECHA', width: 82, align: 'left' as const },
       { label: 'TOTAL', width: 44, align: 'center' as const },
       { label: 'CUMPLE', width: 54, align: 'center' as const },
       { label: 'NO CUMPLE', width: 66, align: 'center' as const },
       { label: 'CORREGIDA', width: 70, align: 'center' as const },
       { label: 'SIN REV.', width: 58, align: 'center' as const },
       { label: 'RESULTADO', width: 106, align: 'center' as const },
-      { label: 'OBSERVACION', width: contentWidth - 610, align: 'left' as const },
+      { label: 'OBSERVACION', width: contentWidth - 630, align: 'left' as const },
     ];
 
     const drawTableHeader = () => {
@@ -210,19 +213,19 @@ async function createPdf(input: {
             : row.pendientes
               ? ['Pendiente', COLOR.amber, COLOR.amberSoft]
               : ['Revision completa', COLOR.green, COLOR.greenSoft];
-        const values = [row.clase, formatDateRange(row.fechas), row.total, row.cumple, row.noCumple, row.corregidas, row.pendientes];
+        const values = [row.codigoClase, row.clase, formatDateRange(row.fechas), row.total, row.cumple, row.noCumple, row.corregidas, row.pendientes];
         let x = 36;
         values.forEach((value, valueIndex) => {
           const column = columns[valueIndex];
-          const color = valueIndex === 3 ? COLOR.green : valueIndex === 4 ? COLOR.red : valueIndex === 5 ? '#2563EB' : valueIndex === 6 ? COLOR.amber : COLOR.ink;
-          doc.fillColor(color).font(valueIndex === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).text(String(value), x + 8, y + 11, { width: column.width - 16, align: column.align });
+          const color = valueIndex === 4 ? COLOR.green : valueIndex === 5 ? COLOR.red : valueIndex === 6 ? '#2563EB' : valueIndex === 7 ? COLOR.amber : COLOR.ink;
+          doc.fillColor(color).font(valueIndex <= 1 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).text(String(value), x + 8, y + 11, { width: column.width - 16, align: column.align });
           x += column.width;
         });
-        const resultWidth = columns[7].width;
+        const resultWidth = columns[8].width;
         doc.roundedRect(x + 7, y + 7, resultWidth - 14, 18, 8).fill(result[2]);
         doc.fillColor(result[1]).font('Helvetica-Bold').fontSize(7.5).text(result[0], x + 12, y + 12, { width: resultWidth - 24, align: 'center' });
         x += resultWidth;
-        doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(row.observaciones[0] || '-', x + 8, y + 8, { width: columns[8].width - 16, height: rowHeight - 10 });
+        doc.fillColor(COLOR.muted).font('Helvetica').fontSize(7).text(row.observaciones[0] || '-', x + 8, y + 8, { width: columns[9].width - 16, height: rowHeight - 10 });
         doc.moveTo(36, y + rowHeight).lineTo(36 + contentWidth, y + rowHeight).strokeColor(COLOR.line).stroke();
         doc.y = y + rowHeight;
       }
@@ -321,6 +324,17 @@ export async function GET(req: Request) {
       );
       sourceRows.push({ grupo, clase, fecha, reviews });
     }
+    const codeMap = await ensureClassCodes(sourceRows.map((row) => ({
+      formId: component.formId,
+      componenteId: component.id,
+      componenteNombre: component.nombre,
+      grupo: row.grupo,
+      clase: row.clase,
+    })));
+    const rowsWithCodes = sourceRows.map((row) => {
+      const identity = classCodeIdentity({ formId: component.formId, componenteId: component.id, componenteNombre: component.nombre, grupo: row.grupo, clase: row.clase });
+      return { ...row, codigoClase: codeMap.get(classCodeMapKey(identity)) ?? '-' };
+    });
 
     const pdf = await createPdf({
       componente: component.nombre,
@@ -329,7 +343,7 @@ export async function GET(req: Request) {
       desde: desdeRaw,
       hasta: hastaRaw,
       revisor: session.isSuperAdmin ? 'Super Administrador' : session.usuario?.nombre || session.userId,
-      rows: summarize(sourceRows),
+      rows: summarize(rowsWithCodes),
     });
 
     return new NextResponse(pdf, {

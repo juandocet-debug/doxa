@@ -266,6 +266,7 @@ export default function AdminEvidenciasPage() {
                         const statusLabel = isDuplicatedClass ? 'Parcial' : classApproved ? 'Cumple · Aprobada' : group.reviewNoCumple ? 'No cumple' : group.reviewCumple ? 'En revisión' : 'Pendiente';
                         const cardBorder = classApproved ? '1px solid rgba(52,211,153,0.55)' : '1px solid rgba(255,255,255,0.08)';
                         const cardBackground = classApproved ? 'linear-gradient(135deg, rgba(16,185,129,0.24), rgba(2,78,51,0.52))' : 'rgba(2,6,4,0.42)';
+                        const codigoClase = group.codigoClase || 'Sin codigo';
                         return (
                           <button
                             key={group.clase}
@@ -289,6 +290,9 @@ export default function AdminEvidenciasPage() {
                               <strong style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{group.clase}</strong>
                               <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
                             </div>
+                            <span style={{ display: 'inline-flex', width: 'fit-content', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.28)', background: 'rgba(16,185,129,0.09)', color: C.lime, fontSize: '0.7rem', fontWeight: 950, letterSpacing: '0.08em' }}>
+                              ID {codigoClase}
+                            </span>
                             <div style={{ color: C.textMuted, fontSize: '0.68rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {section.grupo}
                             </div>

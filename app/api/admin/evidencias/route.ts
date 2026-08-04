@@ -9,6 +9,7 @@ import { deleteSubmission, deleteClase } from '@/lib/evidencias/delete-service';
 import { getSubmissionFileUrls } from '@/lib/evidencias/file-groups';
 import { cleanUrl } from '@/lib/evidencias/archive-resolver';
 import { addArchiveReviewToSummary, createReviewSummary } from '@/lib/evidencias/review-state';
+import { classCodeIdentity, classCodeMapKey, ensureClassCodes } from '@/lib/evidencias/class-code';
 
 export async function GET(req: Request) {
   const startTime = Date.now();
@@ -197,6 +198,18 @@ export async function GET(req: Request) {
     mappedSubmissions.sort(
       (a, b) => new Date(b.fechaActividadReal ?? b.fechaEnvio).getTime() - new Date(a.fechaActividadReal ?? a.fechaEnvio).getTime()
     );
+
+    const codeMap = await ensureClassCodes(mappedSubmissions.map((sub) => ({
+      formId: sub.formId,
+      componenteId: sub.componenteId,
+      componenteNombre: sub.componenteNombre,
+      grupo: sub.grupo,
+      clase: sub.clase,
+    })));
+    for (const sub of mappedSubmissions) {
+      const identity = classCodeIdentity(sub);
+      sub.codigoClase = codeMap.get(classCodeMapKey(identity)) ?? null;
+    }
 
     const total = mappedSubmissions.length;
     const paginated = mappedSubmissions.slice((page - 1) * pageSize, page * pageSize);

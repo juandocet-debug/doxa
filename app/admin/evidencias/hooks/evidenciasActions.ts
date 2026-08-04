@@ -326,7 +326,7 @@ export function useEvidenciasActions(params: EvidenciasActionsParams) {
   async function handleUploadToDrive(sub: SubmisionEvidencia) {
     setUploadingDrive(sub.submissionId);
     try {
-      const zipName = [sub.componenteNombre, sub.grupo, sub.clase].map(s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 25)).join('__');
+      const zipName = sub.codigoClase || 'evidencias';
       const res = await fetch('/api/admin/drive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formId: sub.formId, submissionId: sub.submissionId, zipName }) });
       const data = await res.json();
       if (!res.ok) {

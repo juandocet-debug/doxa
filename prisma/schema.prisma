@@ -214,6 +214,26 @@ model TallySubmissionSnapshot {
   @@index([fechaActividadReal])
 }
 
+model TallyClassCode {
+  id                String   @id @default(cuid())
+  formId            String
+  componenteId      String
+  componenteNombre  String?
+  grupo             String
+  clase             String
+  grupoKey          String
+  claseKey          String
+  code              String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([formId, componenteId, grupoKey, claseKey])
+  @@index([formId])
+  @@index([componenteId])
+  @@index([grupoKey])
+  @@index([claseKey])
+}
+
 model TallyArchivoSnapshot {
   id                String   @id @default(cuid())
   snapshotId        String

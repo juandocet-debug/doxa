@@ -46,13 +46,19 @@ export function EvidenceDetailView({ state, groupSections }: EvidenceDetailViewP
     loadingFiles,
     fetchFilesForSubmission,
   } = state;
+  const selectedCode = filtered.find(sub => sub.codigoClase)?.codigoClase;
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <p style={{ margin: '0 0 4px', color: C.lime, fontSize: '0.58rem', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Clase seleccionada</p>
-          <h2 style={{ margin: 0, color: C.textPrimary, fontSize: '1.05rem', fontWeight: 850 }}>{filterClase}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, color: C.textPrimary, fontSize: '1.05rem', fontWeight: 850 }}>{filterClase}</h2>
+            {selectedCode && (
+              <span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.09)', color: C.lime, fontSize: '0.72rem', fontWeight: 950, letterSpacing: '0.08em' }}>ID {selectedCode}</span>
+            )}
+          </div>
           <p style={{ margin: '4px 0 0', color: C.textMuted, fontSize: '0.76rem' }}>
             {filtered.length} envio{filtered.length !== 1 ? 's' : ''} organizado{filtered.length !== 1 ? 's' : ''} por grupo.
           </p>
@@ -68,9 +74,7 @@ export function EvidenceDetailView({ state, groupSections }: EvidenceDetailViewP
             <span style={{ color: C.textMuted, fontSize: '0.72rem', flexShrink: 0 }}>{section.total} envio{section.total !== 1 ? 's' : ''}</span>
           </div>
           {section.items.map((sub, index) => {
-            const zipName = [sub.componenteNombre, sub.grupo, sub.clase]
-              .map(s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 25))
-              .join('__');
+            const zipName = sub.codigoClase || 'evidencias';
             const defaultOpen = sectionIndex === 0 && index === 0;
             return (
               <DetailCard

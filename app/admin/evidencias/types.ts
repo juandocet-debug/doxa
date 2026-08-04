@@ -26,6 +26,7 @@ export interface SubmisionEvidencia {
   componenteNombre: string;
   grupo: string;
   clase: string;
+  codigoClase?: string | null;
   fechaEnvio: string;
   fechaActividadReal?: string | null;
   fotos?: { label: string; archivos: TallyFile[] }[];
@@ -47,6 +48,7 @@ export interface SubmisionMetadata {
   componenteNombre: string;
   grupo: string;
   clase: string;
+  codigoClase?: string | null;
   fechaEnvio: string;
   fechaActividadReal?: string | null;
   estado: 'pendiente' | 'aprobada' | 'rechazada';
